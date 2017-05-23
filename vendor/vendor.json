@@ -187,6 +187,12 @@
 			"revisionTime": "2017-03-21T21:09:47Z"
 		},
 		{
+			"checksumSHA1": "RmL9wD49aRz+vCugwed0ccVTMeY=",
+			"path": "github.com/pkg/errors",
+			"revision": "c605e284fe17294bda444b34710735b29d1a9d90",
+			"revisionTime": "2017-05-05T04:36:39Z"
+		},
+		{
 			"checksumSHA1": "zKKp5SZ3d3ycKe4EKMNT0BqAWBw=",
 			"origin": "github.com/stretchr/testify/vendor/github.com/pmezard/go-difflib/difflib",
 			"path": "github.com/pmezard/go-difflib/difflib",
@@ -227,6 +233,12 @@
 			"revisionTime": "2017-03-21T21:09:59Z"
 		},
 		{
+			"checksumSHA1": "ujkdYz/AOSZ4dVskaUGW9g/V/dM=",
+			"path": "golang.org/x/net/context",
+			"revision": "1a26cf06691746ee35aa7113c9b37289afc7ea28",
+			"revisionTime": "2017-05-22T17:50:42Z"
+		},
+		{
 			"checksumSHA1": "SPYGC6DQrH9jICccUsOfbvvhB4g=",
 			"origin": "k8s.io/apimachinery/vendor/golang.org/x/net/http2",
 			"path": "golang.org/x/net/http2",
@@ -253,6 +265,12 @@
 			"path": "golang.org/x/net/lex/httplex",
 			"revision": "75b8dd260ef0469d96d578705a87cffd0e09dab8",
 			"revisionTime": "2017-03-21T21:09:47Z"
+		},
+		{
+			"checksumSHA1": "N4WObJwRFBC6QDe67fHtXLnAAB4=",
+			"path": "golang.org/x/sync/errgroup",
+			"revision": "f52d1811a62927559de87708c8913c1650ce4f26",
+			"revisionTime": "2017-05-17T20:25:26Z"
 		},
 		{
 			"checksumSHA1": "ocQvX+Oc2X7QEYaFB18/Q8uPMLc=",
