@@ -64,6 +64,8 @@ func Main() int {
 		return 1
 	}
 
+	cr, err := curator.New(cfg, log.With(logger, "component", "curatoroperator"))
+
 	web, err := api.New(cfg, log.With(logger, "component", "api"))
 	if err != nil {
 		fmt.Fprint(os.Stderr, err)
@@ -81,6 +83,7 @@ func Main() int {
 	wg, ctx := errgroup.WithContext(ctx)
 
 	wg.Go(func() error { return es.Run(ctx.Done()) })
+	wg.Go(func() error { return cr.Run(ctx.Done()) })
 
 	go http.Serve(l, nil)
 

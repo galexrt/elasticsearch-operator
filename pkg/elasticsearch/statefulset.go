@@ -210,7 +210,7 @@ func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *Config) (*v1beta1.Stateful
 		},
 	}
 
-	promVolumeMounts := []v1.VolumeMount{
+	elastVolumeMounts := []v1.VolumeMount{
 		{
 			Name:      "config",
 			ReadOnly:  true,
@@ -251,7 +251,7 @@ func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *Config) (*v1beta1.Stateful
 								Protocol:      v1.ProtocolTCP,
 							},
 						},
-						VolumeMounts: promVolumeMounts,
+						VolumeMounts: elastVolumeMounts,
 						LivenessProbe: &v1.Probe{
 							Handler: probeHandler,
 							// For larger servers, restoring a checkpoint on startup may take quite a bit of time.

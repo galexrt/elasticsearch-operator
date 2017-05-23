@@ -1,0 +1,4 @@
+# TODO
+
+* Fix curator cronjob tests
+* Fix usage of v1 API to batch/v2alpha1

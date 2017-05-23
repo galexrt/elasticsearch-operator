@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package elasticsearch
+package curator
 
 import (
 	"bytes"
@@ -38,19 +38,21 @@ import (
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/apps/v1beta1"
+	"k8s.io/client-go/pkg/apis/batch/v2alpha1"
 	extensionsobj "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
 const (
-	tprElasticsearch = "elasticsearch." + v1alpha1.TPRGroup
-	configFilename   = "elasticsearch.yaml"
+	tprCurator     = "curator." + v1alpha1.TPRGroup
+	configFilename = "curator.yaml"
+	actionFilename = "action_file.yml"
 
 	resyncPeriod = 5 * time.Minute
 )
 
-// Operator manages lify cycle of Elasticsearch deployments and
+// Operator manages lify cycle of Curator deployments and
 // monitoring configurations.
 type Operator struct {
 	kclient *kubernetes.Clientset
@@ -94,22 +96,22 @@ func New(conf Config, logger log.Logger) (*Operator, error) {
 		kclient: client,
 		mclient: mclient,
 		logger:  logger,
-		queue:   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "elasticsearch"),
+		queue:   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "curator"),
 		host:    cfg.Host,
 		config:  conf,
 	}
 
 	c.elastInf = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc:  mclient.Elasticsearches(api.NamespaceAll).List,
-			WatchFunc: mclient.Elasticsearches(api.NamespaceAll).Watch,
+			ListFunc:  mclient.Curators(api.NamespaceAll).List,
+			WatchFunc: mclient.Curators(api.NamespaceAll).Watch,
 		},
-		&v1alpha1.Elasticsearch{}, resyncPeriod, cache.Indexers{},
+		&v1alpha1.Curator{}, resyncPeriod, cache.Indexers{},
 	)
 	c.elastInf.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.handleAddElasticsearch,
-		DeleteFunc: c.handleDeleteElasticsearch,
-		UpdateFunc: c.handleUpdateElasticsearch,
+		AddFunc:    c.handleAddCurator,
+		DeleteFunc: c.handleDeleteCurator,
+		UpdateFunc: c.handleUpdateCurator,
 	})
 
 	c.secrInf = cache.NewSharedIndexInformer(
@@ -123,7 +125,7 @@ func New(conf Config, logger log.Logger) (*Operator, error) {
 	})
 
 	c.ssetInf = cache.NewSharedIndexInformer(
-		cache.NewListWatchFromClient(c.kclient.Apps().RESTClient(), "statefulsets", api.NamespaceAll, nil),
+		cache.NewListWatchFromClient(c.kclient.Apps().RESTClient(), "cronjobs", api.NamespaceAll, nil),
 		&v1beta1.StatefulSet{}, resyncPeriod, cache.Indexers{},
 	)
 	c.ssetInf.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -184,35 +186,35 @@ func (c *Operator) keyFunc(obj interface{}) (string, bool) {
 	return k, true
 }
 
-func (c *Operator) handleAddElasticsearch(obj interface{}) {
+func (c *Operator) handleAddCurator(obj interface{}) {
 	key, ok := c.keyFunc(obj)
 	if !ok {
 		return
 	}
 
-	analytics.ElasticsearchCreated()
-	c.logger.Log("msg", "Elasticsearch added", "key", key)
+	analytics.CuratorCreated()
+	c.logger.Log("msg", "Curator added", "key", key)
 	c.enqueue(key)
 }
 
-func (c *Operator) handleDeleteElasticsearch(obj interface{}) {
+func (c *Operator) handleDeleteCurator(obj interface{}) {
 	key, ok := c.keyFunc(obj)
 	if !ok {
 		return
 	}
 
-	analytics.ElasticsearchDeleted()
-	c.logger.Log("msg", "Elasticsearch deleted", "key", key)
+	analytics.CuratorDeleted()
+	c.logger.Log("msg", "Curator deleted", "key", key)
 	c.enqueue(key)
 }
 
-func (c *Operator) handleUpdateElasticsearch(old, cur interface{}) {
+func (c *Operator) handleUpdateCurator(old, cur interface{}) {
 	key, ok := c.keyFunc(cur)
 	if !ok {
 		return
 	}
 
-	c.logger.Log("msg", "Elasticsearch updated", "key", key)
+	c.logger.Log("msg", "Curator updated", "key", key)
 	c.enqueue(key)
 }
 
@@ -297,10 +299,10 @@ func (c *Operator) enqueue(obj interface{}) {
 	c.queue.Add(key)
 }
 
-// enqueueForNamespace enqueues all Elasticsearch object keys that belong to the given namespace.
+// enqueueForNamespace enqueues all Curator object keys that belong to the given namespace.
 func (c *Operator) enqueueForNamespace(ns string) {
 	cache.ListAll(c.elastInf.GetStore(), labels.Everything(), func(obj interface{}) {
-		p := obj.(*v1alpha1.Elasticsearch)
+		p := obj.(*v1alpha1.Curator)
 		if p.Namespace == ns {
 			c.enqueue(p)
 		}
@@ -333,50 +335,50 @@ func (c *Operator) processNextWorkItem() bool {
 	return true
 }
 
-func (c *Operator) elasticsearchForStatefulSet(sset interface{}) *v1alpha1.Elasticsearch {
+func (c *Operator) curatorForStatefulSet(sset interface{}) *v1alpha1.Curator {
 	key, ok := c.keyFunc(sset)
 	if !ok {
 		return nil
 	}
 
-	promKey := statefulSetKeyToElasticsearchKey(key)
+	promKey := statefulSetKeyToCuratorKey(key)
 	p, exists, err := c.elastInf.GetStore().GetByKey(promKey)
 	if err != nil {
-		c.logger.Log("msg", "Elasticsearch lookup failed", "err", err)
+		c.logger.Log("msg", "Curator lookup failed", "err", err)
 		return nil
 	}
 	if !exists {
 		return nil
 	}
-	return p.(*v1alpha1.Elasticsearch)
+	return p.(*v1alpha1.Curator)
 }
 
-func elasticsearchNameFromStatefulSetName(name string) string {
-	return strings.TrimPrefix(name, "elasticsearch-")
+func curatorNameFromStatefulSetName(name string) string {
+	return strings.TrimPrefix(name, "curator-")
 }
 
-func statefulSetNameFromElasticsearchName(name string) string {
-	return "elasticsearch-" + name
+func statefulSetNameFromCuratorName(name string) string {
+	return "curator-" + name
 }
 
-func statefulSetKeyToElasticsearchKey(key string) string {
+func statefulSetKeyToCuratorKey(key string) string {
 	keyParts := strings.Split(key, "/")
-	return keyParts[0] + "/" + strings.TrimPrefix(keyParts[1], "elasticsearch-")
+	return keyParts[0] + "/" + strings.TrimPrefix(keyParts[1], "curator-")
 }
 
-func elasticsearchKeyToStatefulSetKey(key string) string {
+func curatorKeyToStatefulSetKey(key string) string {
 	keyParts := strings.Split(key, "/")
-	return keyParts[0] + "/elasticsearch-" + keyParts[1]
+	return keyParts[0] + "/curator-" + keyParts[1]
 }
 
 func (c *Operator) handleDeleteStatefulSet(obj interface{}) {
-	if ps := c.elasticsearchForStatefulSet(obj); ps != nil {
+	if ps := c.curatorForStatefulSet(obj); ps != nil {
 		c.enqueue(ps)
 	}
 }
 
 func (c *Operator) handleAddStatefulSet(obj interface{}) {
-	if ps := c.elasticsearchForStatefulSet(obj); ps != nil {
+	if ps := c.curatorForStatefulSet(obj); ps != nil {
 		c.enqueue(ps)
 	}
 }
@@ -393,7 +395,7 @@ func (c *Operator) handleUpdateStatefulSet(oldo, curo interface{}) {
 		return
 	}
 
-	if ps := c.elasticsearchForStatefulSet(cur); ps != nil {
+	if ps := c.curatorForStatefulSet(cur); ps != nil {
 		c.enqueue(ps)
 	}
 }
@@ -410,17 +412,17 @@ func (c *Operator) sync(key string) error {
 		// we have to garbage collect the controller-created resources in some other way.
 		//
 		// Let's rely on the index key matching that of the created configmap and StatefulSet for now.
-		// This does not work if we delete Elasticsearch resources as the
+		// This does not work if we delete Curator resources as the
 		// controller is not running – that could be solved via garbage collection later.
-		return c.destroyElasticsearch(key)
+		return c.destroyCurator(key)
 	}
 
-	p := obj.(*v1alpha1.Elasticsearch)
+	p := obj.(*v1alpha1.Curator)
 	if p.Spec.Paused {
 		return nil
 	}
 
-	c.logger.Log("msg", "sync elasticsearch", "key", key)
+	c.logger.Log("msg", "sync curator", "key", key)
 
 	if err := c.createConfig(p); err != nil {
 		return errors.Wrap(err, "creating config failed")
@@ -435,35 +437,29 @@ func (c *Operator) sync(key string) error {
 		return errors.Wrap(err, "creating empty config file failed")
 	}
 
-	// Create governing service if it doesn't exist.
-	svcClient := c.kclient.Core().Services(p.Namespace)
-	if err := k8sutil.CreateOrUpdateService(svcClient, makeStatefulSetService(p)); err != nil {
-		return errors.Wrap(err, "synchronizing governing service failed")
-	}
-
-	ssetClient := c.kclient.Apps().StatefulSets(p.Namespace)
-	// Ensure we have a StatefulSet running Elasticsearch deployed.
-	obj, exists, err = c.ssetInf.GetIndexer().GetByKey(elasticsearchKeyToStatefulSetKey(key))
+	ssetClient := c.kclient.BatchV2alpha1().CronJobs(p.Namespace)
+	// Ensure we have a StatefulSet running Curator deployed.
+	obj, exists, err = c.ssetInf.GetIndexer().GetByKey(curatorKeyToStatefulSetKey(key))
 	if err != nil {
-		return errors.Wrap(err, "retrieving statefulset failed")
+		return errors.Wrap(err, "retrieving cronjob failed")
 	}
 
 	if !exists {
-		sset, err := makeStatefulSet(*p, nil, &c.config)
+		sset, err := makeCronjob(*p, nil, &c.config)
 		if err != nil {
-			return errors.Wrap(err, "creating statefulset failed")
+			return errors.Wrap(err, "creating cronjob failed")
 		}
 		if _, err := ssetClient.Create(sset); err != nil {
-			return errors.Wrap(err, "creating statefulset failed")
+			return errors.Wrap(err, "creating cronjob failed")
 		}
 		return nil
 	}
-	sset, err := makeStatefulSet(*p, obj.(*v1beta1.StatefulSet), &c.config)
+	sset, err := makeCronjob(*p, obj.(*v2alpha1.CronJob), &c.config)
 	if err != nil {
-		return errors.Wrap(err, "updating statefulset failed")
+		return errors.Wrap(err, "updating cronjob failed")
 	}
 	if _, err := ssetClient.Update(sset); err != nil {
-		return errors.Wrap(err, "updating statefulset failed")
+		return errors.Wrap(err, "updating cronjob failed")
 	}
 
 	err = c.syncVersion(key, p)
@@ -477,64 +473,45 @@ func (c *Operator) sync(key string) error {
 func ListOptions(name string) metav1.ListOptions {
 	return metav1.ListOptions{
 		LabelSelector: fields.SelectorFromSet(fields.Set(map[string]string{
-			"app":           "elasticsearch",
-			"elasticsearch": name,
+			"app":     "curator",
+			"curator": name,
 		})).String(),
 	}
 }
 
-// syncVersion ensures that all running pods for a Elasticsearch have the required version.
+// syncVersion ensures that all running pods for a Curator have the required version.
 // It kills pods with the wrong version one-after-one and lets the StatefulSet controller
 // create new pods.
 //
 // TODO(fabxc): remove this once the StatefulSet controller learns how to do rolling updates.
-func (c *Operator) syncVersion(key string, p *v1alpha1.Elasticsearch) error {
-	status, oldPods, err := ElasticsearchStatus(c.kclient, p)
+func (c *Operator) syncVersion(key string, p *v1alpha1.Curator) error {
+	status, oldPods, err := CuratorStatus(c.kclient, p)
 	if err != nil {
-		return errors.Wrap(err, "retrieving Elasticsearch status failed")
+		return errors.Wrap(err, "retrieving Curator status failed")
 	}
 
 	// If the StatefulSet is still busy scaling, don't interfere by killing pods.
 	// We enqueue ourselves again to until the StatefulSet is ready.
-	expectedReplicas := int32(1)
-	if p.Spec.Replicas != nil {
-		expectedReplicas = *p.Spec.Replicas
+	expectedSchedule := "1 0 * * *"
+	if p.Spec.Schedule != "" {
+		expectedSchedule = p.Spec.Schedule
 	}
-	if status.Replicas != expectedReplicas {
-		return fmt.Errorf("scaling in progress, %d expected replicas, %d found replicas", expectedReplicas, status.Replicas)
-	}
-	if status.Replicas == 0 {
-		return nil
-	}
-	if len(oldPods) == 0 {
-		return nil
-	}
-	if status.UnavailableReplicas > 0 {
-		return fmt.Errorf("waiting for %d unavailable pods to become ready", status.UnavailableReplicas)
-	}
+	// TODO(galexrt) check if schedule is changed
 
-	// TODO(fabxc): delete oldest pod first.
-	if err := c.kclient.Core().Pods(p.Namespace).Delete(oldPods[0].Name, nil); err != nil {
-		return err
-	}
-	// If there are further pods that need updating, we enqueue ourselves again.
-	if len(oldPods) > 1 {
-		return fmt.Errorf("%d out-of-date pods remaining", len(oldPods)-1)
-	}
 	return nil
 }
 
-// ElasticsearchStatus evaluates the current status of a Elasticsearch deployment with respect
+// CuratorStatus evaluates the current status of a Curator deployment with respect
 // to its specified resource object. It return the status and a list of pods that
 // are not updated.
-func ElasticsearchStatus(kclient kubernetes.Interface, p *v1alpha1.Elasticsearch) (*v1alpha1.ElasticsearchStatus, []v1.Pod, error) {
-	res := &v1alpha1.ElasticsearchStatus{Paused: p.Spec.Paused}
+func CuratorStatus(kclient kubernetes.Interface, p *v1alpha1.Curator) (*v1alpha1.CuratorStatus, []v1.Pod, error) {
+	res := &v1alpha1.CuratorStatus{Paused: p.Spec.Paused}
 
 	pods, err := kclient.Core().Pods(p.Namespace).List(ListOptions(p.Name))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "retrieving pods of failed")
 	}
-	sset, err := kclient.Apps().StatefulSets(p.Namespace).Get(statefulSetNameFromElasticsearchName(p.Name), metav1.GetOptions{})
+	sset, err := kclient.Apps().StatefulSets(p.Namespace).Get(statefulSetNameFromCuratorName(p.Name), metav1.GetOptions{})
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "retrieving stateful set failed")
 	}
@@ -564,7 +541,7 @@ func ElasticsearchStatus(kclient kubernetes.Interface, p *v1alpha1.Elasticsearch
 }
 
 // needsUpdate checks whether the given pod conforms with the pod template spec
-// for various attributes that are influenced by the Elasticsearch TPR settings.
+// for various attributes that are influenced by the Curator TPR settings.
 func needsUpdate(pod *v1.Pod, tmpl v1.PodTemplateSpec) bool {
 	c1 := pod.Spec.Containers[0]
 	c2 := tmpl.Spec.Containers[0]
@@ -582,11 +559,11 @@ func needsUpdate(pod *v1.Pod, tmpl v1.PodTemplateSpec) bool {
 	return false
 }
 
-func (c *Operator) destroyElasticsearch(key string) error {
-	ssetKey := elasticsearchKeyToStatefulSetKey(key)
+func (c *Operator) destroyCurator(key string) error {
+	ssetKey := curatorKeyToStatefulSetKey(key)
 	obj, exists, err := c.ssetInf.GetStore().GetByKey(ssetKey)
 	if err != nil {
-		return errors.Wrap(err, "retrieving statefulset from cache failed")
+		return errors.Wrap(err, "retrieving cronjob from cache failed")
 	}
 	if !exists {
 		return nil
@@ -598,7 +575,7 @@ func (c *Operator) destroyElasticsearch(key string) error {
 	ssetClient := c.kclient.Apps().StatefulSets(sset.Namespace)
 
 	if _, err := ssetClient.Update(sset); err != nil {
-		return errors.Wrap(err, "updating statefulset for scale-down failed")
+		return errors.Wrap(err, "updating cronjob for scale-down failed")
 	}
 
 	podClient := c.kclient.Core().Pods(sset.Namespace)
@@ -606,9 +583,9 @@ func (c *Operator) destroyElasticsearch(key string) error {
 	// TODO(fabxc): temprorary solution until StatefulSet status provides necessary info to know
 	// whether scale-down completed.
 	for {
-		pods, err := podClient.List(ListOptions(elasticsearchNameFromStatefulSetName(sset.Name)))
+		pods, err := podClient.List(ListOptions(curatorNameFromStatefulSetName(sset.Name)))
 		if err != nil {
-			return errors.Wrap(err, "retrieving pods of statefulset failed")
+			return errors.Wrap(err, "retrieving pods of cronjob failed")
 		}
 		if len(pods.Items) == 0 {
 			break
@@ -618,12 +595,12 @@ func (c *Operator) destroyElasticsearch(key string) error {
 
 	// StatefulSet scaled down, we can delete it.
 	if err := ssetClient.Delete(sset.Name, nil); err != nil {
-		return errors.Wrap(err, "deleting statefulset failed")
+		return errors.Wrap(err, "deleting cronjob failed")
 	}
 
 	// Delete the auto-generate configuration.
 	// TODO(fabxc): add an ownerRef at creation so we don't delete Secrets
-	// manually created for Elasticsearch servers with no ServiceMonitor selectors.
+	// manually created for Curator servers with no ServiceMonitor selectors.
 	s := c.kclient.Core().Secrets(sset.Namespace)
 	secret, err := s.Get(sset.Name, metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -644,7 +621,7 @@ func (c *Operator) destroyElasticsearch(key string) error {
 	return nil
 }
 
-func (c *Operator) createConfig(p *v1alpha1.Elasticsearch) error {
+func (c *Operator) createConfig(p *v1alpha1.Curator) error {
 
 	sClient := c.kclient.CoreV1().Secrets(p.Namespace)
 
@@ -693,12 +670,12 @@ func (c *Operator) createTPRs() error {
 	tprs := []*extensionsobj.ThirdPartyResource{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: tprElasticsearch,
+				Name: tprCurator,
 			},
 			Versions: []extensionsobj.APIVersion{
 				{Name: v1alpha1.TPRVersion},
 			},
-			Description: "Managed Elasticsearch instance(s)",
+			Description: "Managed Curator instance(s)",
 		},
 	}
 	tprClient := c.kclient.Extensions().ThirdPartyResources()
@@ -711,5 +688,5 @@ func (c *Operator) createTPRs() error {
 	}
 
 	// We have to wait for the TPRs to be ready. Otherwise the initial watch may fail.
-	return k8sutil.WaitForTPRReady(c.kclient.CoreV1().RESTClient(), v1alpha1.TPRGroup, v1alpha1.TPRVersion, v1alpha1.TPRElasticsearchName)
+	return k8sutil.WaitForTPRReady(c.kclient.CoreV1().RESTClient(), v1alpha1.TPRGroup, v1alpha1.TPRVersion, v1alpha1.TPRCuratorName)
 }
