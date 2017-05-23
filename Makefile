@@ -1,4 +1,4 @@
-REPO?=quay.io/coreos/prometheus-operator
+REPO?=quay.io/galexrt/elasticsearch-operator
 TAG?=$(shell git rev-parse --short HEAD)
 NAMESPACE?=po-e2e-$(shell LC_CTYPE=C tr -dc a-z0-9 < /dev/urandom | head -c 13 ; echo '')
 
@@ -50,7 +50,7 @@ embedmd:
 	@go get github.com/campoy/embedmd
 
 apidocgen:
-	@go install github.com/coreos/prometheus-operator/cmd/apidocgen
+	@go install github.com/galexrt/elasticsearch-operator/cmd/apidocgen
 
 docs: embedmd apidocgen
 	embedmd -w `find Documentation -name "*.md"`

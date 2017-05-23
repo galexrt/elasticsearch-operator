@@ -26,15 +26,14 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/coreos/prometheus-operator/pkg/alertmanager"
-	"github.com/coreos/prometheus-operator/pkg/analytics"
-	"github.com/coreos/prometheus-operator/pkg/api"
-	"github.com/coreos/prometheus-operator/pkg/prometheus"
+	"github.com/galexrt/elasticsearch-operator/pkg/analytics"
+	"github.com/galexrt/elasticsearch-operator/pkg/api"
+	"github.com/galexrt/elasticsearch-operator/pkg/elasticsearch"
 	"github.com/go-kit/kit/log"
 )
 
 var (
-	cfg              prometheus.Config
+	cfg              elasticsearch.Config
 	analyticsEnabled bool
 )
 
@@ -45,11 +44,8 @@ func init() {
 	flagset.StringVar(&cfg.TLSConfig.CertFile, "cert-file", "", " - NOT RECOMMENDED FOR PRODUCTION - Path to public TLS certificate file.")
 	flagset.StringVar(&cfg.TLSConfig.KeyFile, "key-file", "", "- NOT RECOMMENDED FOR PRODUCTION - Path to private TLS certificate file.")
 	flagset.StringVar(&cfg.TLSConfig.CAFile, "ca-file", "", "- NOT RECOMMENDED FOR PRODUCTION - Path to TLS CA file.")
-	flagset.StringVar(&cfg.KubeletObject, "kubelet-service", "", "Service/Endpoints object to write kubelets into in format \"namespace/name\"")
 	flagset.BoolVar(&cfg.TLSInsecure, "tls-insecure", false, "- NOT RECOMMENDED FOR PRODUCTION - Don't verify API server's CA certificate.")
 	flagset.BoolVar(&analyticsEnabled, "analytics", true, "Send analytical event (Cluster Created/Deleted etc.) to Google Analytics")
-	flagset.StringVar(&cfg.PrometheusConfigReloader, "prometheus-config-reloader", "quay.io/coreos/prometheus-config-reloader:v0.0.1", "Config and rule reload image")
-	flagset.StringVar(&cfg.ConfigReloaderImage, "config-reloader-image", "quay.io/coreos/configmap-reload:v0.0.1", "Reload Image")
 
 	flagset.Parse(os.Args[1:])
 }
@@ -62,13 +58,7 @@ func Main() int {
 		analytics.Enable()
 	}
 
-	po, err := prometheus.New(cfg, logger.With("component", "prometheusoperator"))
-	if err != nil {
-		fmt.Fprint(os.Stderr, err)
-		return 1
-	}
-
-	ao, err := alertmanager.New(cfg, logger.With("component", "alertmanageroperator"))
+	es, err := elasticsearch.New(cfg, logger.With("component", "elasticsearchoperator"))
 	if err != nil {
 		fmt.Fprint(os.Stderr, err)
 		return 1
@@ -90,8 +80,7 @@ func Main() int {
 	ctx, cancel := context.WithCancel(context.Background())
 	wg, ctx := errgroup.WithContext(ctx)
 
-	wg.Go(func() error { return po.Run(ctx.Done()) })
-	wg.Go(func() error { return ao.Run(ctx.Done()) })
+	wg.Go(func() error { return es.Run(ctx.Done()) })
 
 	go http.Serve(l, nil)
 

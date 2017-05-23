@@ -1,5 +1,5 @@
 repository:
-    path: github.com/coreos/prometheus-operator
+    path: github.com/galexrt/elasticsearch-operator
 build:
     flags: -a -tags netgo
     binaries:

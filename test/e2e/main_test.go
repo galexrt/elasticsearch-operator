@@ -20,7 +20,7 @@ import (
 	"os"
 	"testing"
 
-	operatorFramework "github.com/coreos/prometheus-operator/test/e2e/framework"
+	operatorFramework "github.com/galexrt/elasticsearch-operator/test/e2e/framework"
 )
 
 var framework *operatorFramework.Framework
@@ -30,7 +30,7 @@ var framework *operatorFramework.Framework
 
 func TestMain(m *testing.M) {
 	kubeconfig := flag.String("kubeconfig", "", "kube config path, e.g. $HOME/.kube/config")
-	opImage := flag.String("operator-image", "", "operator image, e.g. quay.io/coreos/prometheus-operator")
+	opImage := flag.String("operator-image", "", "operator image, e.g. quay.io/galexrt/elasticsearch-operator")
 	ns := flag.String("namespace", "prometheus-operator-e2e-tests", "e2e test namespace")
 	ip := flag.String("cluster-ip", "", "ip of the kubernetes cluster to use for external requests")
 	flag.Parse()

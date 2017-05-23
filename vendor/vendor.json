@@ -1181,5 +1181,5 @@
 			"revisionTime": "2017-03-31T20:34:26Z"
 		}
 	],
-	"rootPath": "github.com/coreos/prometheus-operator"
+	"rootPath": "github.com/galexrt/elasticsearch-operator"
 }

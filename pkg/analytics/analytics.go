@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	id       = "UA-42684979-8"
+	id       = "UA-99736954-1"
 	category = "prometheus-operator"
 )
 
@@ -62,18 +62,10 @@ func mustNewClient() *ga.Client {
 	return client
 }
 
-func PrometheusCreated() {
+func ElasticsearchCreated() {
 	send(ga.NewEvent(category, "prometheus_created"))
 }
 
-func PrometheusDeleted() {
+func ElasticsearchDeleted() {
 	send(ga.NewEvent(category, "prometheus_deleted"))
-}
-
-func AlertmanagerCreated() {
-	send(ga.NewEvent(category, "alertmanager_created"))
-}
-
-func AlertmanagerDeleted() {
-	send(ga.NewEvent(category, "alertmanager_deleted"))
 }

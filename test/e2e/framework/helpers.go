@@ -13,7 +13,7 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 
-	"github.com/coreos/prometheus-operator/pkg/k8sutil"
+	"github.com/galexrt/elasticsearch-operator/pkg/k8sutil"
 	"github.com/pkg/errors"
 )
 

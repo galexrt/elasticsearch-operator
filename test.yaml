@@ -1,0 +1,10 @@
+apiVersion: "elasticsearch.zerbytes.net/v1alpha1"
+kind: "Elasticsearch"
+metadata:
+  name: "test"
+spec:
+  config: |
+    discovery:
+      zen:
+        ping.unicast.hosts: ${DISCOVERY_SERVICE}
+        minimum_master_nodes: ${NUMBER_OF_MASTERS}

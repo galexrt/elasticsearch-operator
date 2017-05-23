@@ -23,15 +23,13 @@ import (
 )
 
 const (
-	TPRGroup   = "monitoring.coreos.com"
+	TPRGroup   = "elasticsearch.zerbytes.net"
 	TPRVersion = "v1alpha1"
 )
 
 type MonitoringV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	PrometheusesGetter
-	AlertmanagersGetter
-	ServiceMonitorsGetter
+	ElasticsearchesGetter
 }
 
 type MonitoringV1alpha1Client struct {
@@ -39,16 +37,8 @@ type MonitoringV1alpha1Client struct {
 	dynamicClient *dynamic.Client
 }
 
-func (c *MonitoringV1alpha1Client) Prometheuses(namespace string) PrometheusInterface {
-	return newPrometheuses(c.restClient, c.dynamicClient, namespace)
-}
-
-func (c *MonitoringV1alpha1Client) Alertmanagers(namespace string) AlertmanagerInterface {
-	return newAlertmanagers(c.restClient, c.dynamicClient, namespace)
-}
-
-func (c *MonitoringV1alpha1Client) ServiceMonitors(namespace string) ServiceMonitorInterface {
-	return newServiceMonitors(c.restClient, c.dynamicClient, namespace)
+func (c *MonitoringV1alpha1Client) Elasticsearches(namespace string) ElasticsearchInterface {
+	return newElasticsearches(c.restClient, c.dynamicClient, namespace)
 }
 
 func (c *MonitoringV1alpha1Client) RESTClient() rest.Interface {

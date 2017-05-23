@@ -25,8 +25,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/coreos/prometheus-operator/pkg/client/monitoring/v1alpha1"
-	"github.com/coreos/prometheus-operator/pkg/k8sutil"
+	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
+	"github.com/galexrt/elasticsearch-operator/pkg/k8sutil"
 	"github.com/pkg/errors"
 )
 
@@ -87,14 +87,14 @@ func New(ns, kubeconfig, opImage, ip string) (*Framework, error) {
 }
 
 func (f *Framework) setup(opImage string) error {
-	if err := f.setupPrometheusOperator(opImage); err != nil {
+	if err := f.setupElasticsearchOperator(opImage); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (f *Framework) setupPrometheusOperator(opImage string) error {
-	deploy, err := MakeDeployment("../../example/non-rbac/prometheus-operator.yaml")
+func (f *Framework) setupElasticsearchOperator(opImage string) error {
+	deploy, err := MakeDeployment("../../example/non-rbac/elasticsearch-operator.yaml")
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func (f *Framework) setupPrometheusOperator(opImage string) error {
 	opts := metav1.ListOptions{LabelSelector: fields.SelectorFromSet(fields.Set(deploy.Spec.Template.ObjectMeta.Labels)).String()}
 	err = WaitForPodsReady(f.KubeClient, f.Namespace.Name, f.DefaultTimeout, 1, opts)
 	if err != nil {
-		return errors.Wrap(err, "failed to wait for prometheus operator to become ready")
+		return errors.Wrap(err, "failed to wait for elasticsearch operator to become ready")
 	}
 
 	pl, err := f.KubeClient.Core().Pods(f.Namespace.Name).List(opts)
@@ -121,30 +121,16 @@ func (f *Framework) setupPrometheusOperator(opImage string) error {
 	}
 	f.OperatorPod = &pl.Items[0]
 
-	err = k8sutil.WaitForTPRReady(f.KubeClient.Core().RESTClient(), v1alpha1.TPRGroup, v1alpha1.TPRVersion, v1alpha1.TPRPrometheusName)
-	if err != nil {
-		return err
-	}
-
-	err = k8sutil.WaitForTPRReady(f.KubeClient.Core().RESTClient(), v1alpha1.TPRGroup, v1alpha1.TPRVersion, v1alpha1.TPRServiceMonitorName)
-	if err != nil {
-		return err
-	}
-
-	return k8sutil.WaitForTPRReady(f.KubeClient.Core().RESTClient(), v1alpha1.TPRGroup, v1alpha1.TPRVersion, v1alpha1.TPRAlertmanagerName)
+	return k8sutil.WaitForTPRReady(f.KubeClient.Core().RESTClient(), v1alpha1.TPRGroup, v1alpha1.TPRVersion, v1alpha1.TPRElasticsearchName)
 }
 
 // Teardown tears down a previously initialized test environment.
 func (f *Framework) Teardown() error {
-	if err := f.KubeClient.Core().Services(f.Namespace.Name).Delete("prometheus-operated", nil); err != nil && !k8sutil.IsResourceNotFoundError(err) {
+	if err := f.KubeClient.Core().Services(f.Namespace.Name).Delete("elasticsearch-operated", nil); err != nil && !k8sutil.IsResourceNotFoundError(err) {
 		return err
 	}
 
-	if err := f.KubeClient.Core().Services(f.Namespace.Name).Delete("alertmanager-operated", nil); err != nil && !k8sutil.IsResourceNotFoundError(err) {
-		return err
-	}
-
-	if err := f.KubeClient.Extensions().Deployments(f.Namespace.Name).Delete("prometheus-operator", nil); err != nil {
+	if err := f.KubeClient.Extensions().Deployments(f.Namespace.Name).Delete("elasticsearch-operator", nil); err != nil {
 		return err
 	}
 	if err := DeleteNamespace(f.KubeClient, f.Namespace.Name); err != nil {

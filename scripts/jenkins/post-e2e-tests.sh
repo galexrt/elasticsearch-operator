@@ -8,7 +8,7 @@ set -u
 # print each command before executing it
 set -x
 
-PO_GOPATH=/go/src/github.com/coreos/prometheus-operator
+PO_GOPATH=/go/src/github.com/galexrt/elasticsearch-operator
 
 docker run \
        --rm \
@@ -18,4 +18,4 @@ docker run \
        cluster-setup-env \
        /bin/bash -c "make clean"
 
-docker rmi quay.io/coreos/prometheus-operator-dev:$BUILD_ID
+docker rmi quay.io/galexrt/elasticsearch-operator-dev:$BUILD_ID

@@ -22,9 +22,9 @@ import (
 	"github.com/go-kit/kit/log"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/coreos/prometheus-operator/pkg/client/monitoring/v1alpha1"
-	"github.com/coreos/prometheus-operator/pkg/k8sutil"
-	"github.com/coreos/prometheus-operator/pkg/prometheus"
+	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
+	"github.com/galexrt/elasticsearch-operator/pkg/elasticsearch"
+	"github.com/galexrt/elasticsearch-operator/pkg/k8sutil"
 )
 
 type API struct {
@@ -33,7 +33,7 @@ type API struct {
 	logger  log.Logger
 }
 
-func New(conf prometheus.Config, l log.Logger) (*API, error) {
+func New(conf elasticsearch.Config, l log.Logger) (*API, error) {
 	cfg, err := k8sutil.NewClusterConfig(conf.Host, conf.TLSInsecure, &conf.TLSConfig)
 	if err != nil {
 		return nil, err
@@ -57,13 +57,13 @@ func New(conf prometheus.Config, l log.Logger) (*API, error) {
 }
 
 var (
-	prometheusRoute = regexp.MustCompile("/apis/monitoring.coreos.com/v1alpha1/namespaces/(.*)/prometheuses/(.*)/status")
+	elasticsearchRoute = regexp.MustCompile("/apis/elasticsearch.zerbytes.net/v1alpha1/namespaces/(.*)/elasticsearches/(.*)/status")
 )
 
 func (api *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		if prometheusRoute.MatchString(req.URL.Path) {
-			api.prometheusStatus(w, req)
+		if elasticsearchRoute.MatchString(req.URL.Path) {
+			api.elasticsearchStatus(w, req)
 		} else {
 			w.WriteHeader(404)
 		}
@@ -75,8 +75,8 @@ type objectReference struct {
 	namespace string
 }
 
-func parsePrometheusStatusUrl(path string) objectReference {
-	matches := prometheusRoute.FindAllStringSubmatch(path, -1)
+func parseElasticsearchStatusUrl(path string) objectReference {
+	matches := elasticsearchRoute.FindAllStringSubmatch(path, -1)
 	ns := ""
 	name := ""
 	if len(matches) == 1 {
@@ -92,10 +92,10 @@ func parsePrometheusStatusUrl(path string) objectReference {
 	}
 }
 
-func (api *API) prometheusStatus(w http.ResponseWriter, req *http.Request) {
-	or := parsePrometheusStatusUrl(req.URL.Path)
+func (api *API) elasticsearchStatus(w http.ResponseWriter, req *http.Request) {
+	or := parseElasticsearchStatusUrl(req.URL.Path)
 
-	p, err := api.mclient.Prometheuses(or.namespace).Get(or.name)
+	p, err := api.mclient.Elasticsearches(or.namespace).Get(or.name)
 	if err != nil {
 		if k8sutil.IsResourceNotFoundError(err) {
 			w.WriteHeader(404)
@@ -104,7 +104,7 @@ func (api *API) prometheusStatus(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	p.Status, _, err = prometheus.PrometheusStatus(api.kclient, p)
+	p.Status, _, err = elasticsearch.ElasticsearchStatus(api.kclient, p)
 	if err != nil {
 		api.logger.Log("error", err)
 	}

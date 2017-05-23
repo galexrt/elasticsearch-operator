@@ -20,7 +20,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/coreos/prometheus-operator/third_party/clock"
+	"github.com/galexrt/elasticsearch-operator/third_party/clock"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 

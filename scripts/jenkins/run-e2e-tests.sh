@@ -9,7 +9,7 @@ set -u
 set -x
 
 DOCKER_SOCKET=/var/run/docker.sock
-PO_QUAY_REPO=quay.io/coreos/prometheus-operator-dev
+PO_QUAY_REPO=quay.io/galexrt/elasticsearch-operator-dev
 
 docker build -t cluster-setup-env scripts/jenkins/.
 docker run \
@@ -26,7 +26,7 @@ docker run \
        --rm \
        -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY \
        -e REPO=$PO_QUAY_REPO -e TAG=$BUILD_ID \
-       -v $PWD:/go/src/github.com/coreos/prometheus-operator \
-       -w /go/src/github.com/coreos/prometheus-operator/scripts/jenkins \
+       -v $PWD:/go/src/github.com/galexrt/elasticsearch-operator \
+       -w /go/src/github.com/galexrt/elasticsearch-operator/scripts/jenkins \
        cluster-setup-env \
        /bin/bash -c "make"
