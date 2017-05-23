@@ -51,20 +51,20 @@ func init() {
 }
 
 func Main() int {
-	logger := log.NewContext(log.NewLogfmtLogger(os.Stdout)).
-		With("ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
+	logger := log.NewLogfmtLogger(os.Stdout)
+	logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
 
 	if analyticsEnabled {
 		analytics.Enable()
 	}
 
-	es, err := elasticsearch.New(cfg, logger.With("component", "elasticsearchoperator"))
+	es, err := elasticsearch.New(cfg, log.With(logger, "component", "elasticsearchoperator"))
 	if err != nil {
 		fmt.Fprint(os.Stderr, err)
 		return 1
 	}
 
-	web, err := api.New(cfg, logger.With("component", "api"))
+	web, err := api.New(cfg, log.With(logger, "component", "api"))
 	if err != nil {
 		fmt.Fprint(os.Stderr, err)
 		return 1
