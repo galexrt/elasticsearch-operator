@@ -115,7 +115,7 @@ func TestCronJobVolumeSkip(t *testing.T) {
 										{
 											Name:      "config",
 											ReadOnly:  true,
-											MountPath: "/etc/elasticsearch/config",
+											MountPath: "/etc/curator/config",
 											SubPath:   "",
 										},
 									},

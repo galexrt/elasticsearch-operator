@@ -17,7 +17,6 @@ package curator
 import (
 	"bytes"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -208,34 +207,6 @@ func (c *Operator) handleUpdateCurator(old, cur interface{}) {
 
 	c.logger.Log("msg", "Curator updated", "key", key)
 	c.enqueue(key)
-}
-
-// nodeAddresses returns the provided node's address, based on the priority:
-// 1. NodeInternalIP
-// 2. NodeExternalIP
-// 3. NodeLegacyHostIP
-// 3. NodeHostName
-//
-// Copied from github.com/prometheus/prometheus/discovery/kubernetes/node.go
-func nodeAddress(node *v1.Node) (string, map[v1.NodeAddressType][]string, error) {
-	m := map[v1.NodeAddressType][]string{}
-	for _, a := range node.Status.Addresses {
-		m[a.Type] = append(m[a.Type], a.Address)
-	}
-
-	if addresses, ok := m[v1.NodeInternalIP]; ok {
-		return addresses[0], m, nil
-	}
-	if addresses, ok := m[v1.NodeExternalIP]; ok {
-		return addresses[0], m, nil
-	}
-	if addresses, ok := m[v1.NodeAddressType(api.NodeLegacyHostIP)]; ok {
-		return addresses[0], m, nil
-	}
-	if addresses, ok := m[v1.NodeHostName]; ok {
-		return addresses[0], m, nil
-	}
-	return "", m, fmt.Errorf("host address unknown")
 }
 
 func (c *Operator) handleSecretDelete(obj interface{}) {
@@ -454,11 +425,6 @@ func (c *Operator) sync(key string) error {
 		return errors.Wrap(err, "updating cronjob failed")
 	}
 
-	err = c.syncVersion(key, p)
-	if err != nil {
-		return errors.Wrap(err, "syncing version failed")
-	}
-
 	return nil
 }
 
@@ -469,65 +435,6 @@ func ListOptions(name string) metav1.ListOptions {
 			"curator": name,
 		})).String(),
 	}
-}
-
-// syncVersion ensures that all running pods for a Curator have the required version.
-// It kills pods with the wrong version one-after-one and lets the CronJob controller
-// create new pods.
-//
-// TODO(fabxc): remove this once the CronJob controller learns how to do rolling updates.
-func (c *Operator) syncVersion(key string, p *v1alpha1.Curator) error {
-	_, _, err := CuratorStatus(c.kclient, p)
-	if err != nil {
-		return errors.Wrap(err, "retrieving Curator status failed")
-	}
-
-	return nil
-}
-
-// CuratorStatus evaluates the current status of a Curator deployment with respect
-// to its specified resource object. It return the status and a list of pods that
-// are not updated.
-func CuratorStatus(kclient kubernetes.Interface, p *v1alpha1.Curator) (*v1alpha1.CuratorStatus, []v2alpha1.CronJob, error) {
-	res := &v1alpha1.CuratorStatus{
-		Paused: p.Spec.Paused,
-	}
-
-	jobs, err := kclient.BatchV2alpha1().CronJobs(p.Namespace).List(ListOptions(p.Name))
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "retrieving cronjob of failed")
-	}
-
-	var oldJobs []v2alpha1.CronJob
-	for _, job := range jobs.Items {
-		res.LastScheduleTime = job.Status.LastScheduleTime
-		spec, _ := makeCronJobSpec(*p, nil)
-		if needsUpdate(&job.Spec.JobTemplate.Spec.Template, spec.JobTemplate.Spec.Template) {
-			oldJobs = append(oldJobs, job)
-		}
-		break
-	}
-
-	return res, oldJobs, nil
-}
-
-// needsUpdate checks whether the given pod conforms with the pod template spec
-// for various attributes that are influenced by the Elasticsearch TPR settings.
-func needsUpdate(pod *v1.PodTemplateSpec, tmpl v1.PodTemplateSpec) bool {
-	c1 := pod.Spec.Containers[0]
-	c2 := tmpl.Spec.Containers[0]
-
-	if c1.Image != c2.Image {
-		return true
-	}
-	if !reflect.DeepEqual(c1.Resources, c2.Resources) {
-		return true
-	}
-	if !reflect.DeepEqual(c1.Args, c2.Args) {
-		return true
-	}
-
-	return false
 }
 
 func (c *Operator) destroyCurator(key string) error {

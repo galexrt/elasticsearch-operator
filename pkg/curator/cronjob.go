@@ -86,13 +86,6 @@ func makeCronJob(p v1alpha1.Curator, old *v2alpha1.CronJob, config *config.Confi
 
 	if old != nil {
 		cronjob.Annotations = old.Annotations
-
-		// mounted volumes are not reconciled as CronJob do not allow
-		// modification of the JobTemplate.
-		// TODO(brancz): remove this once CronJobs allow modification of the
-		// JobTemplate.
-		cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts = old.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts
-		cronjob.Spec.JobTemplate.Spec.Template.Spec.Volumes = old.Spec.JobTemplate.Spec.Template.Spec.Volumes
 	}
 
 	return cronjob, nil
@@ -199,18 +192,6 @@ func configSecretName(name string) string {
 	return prefixedName(name)
 }
 
-func volumeName(name string) string {
-	return fmt.Sprintf("%s-data", prefixedName(name))
-}
-
 func prefixedName(name string) string {
 	return fmt.Sprintf("curator-%s", name)
-}
-
-func subPathForStorage(s *v1alpha1.StorageSpec) string {
-	if s == nil {
-		return ""
-	}
-
-	return "curator-data"
 }
