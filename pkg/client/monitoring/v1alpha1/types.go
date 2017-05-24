@@ -57,7 +57,7 @@ type ElasticsearchSpec struct {
 	// Base image to use for a Elasticsearch deployment.
 	BaseImage string `json:"baseImage,omitempty"`
 	// An optional list of references to secrets in the same namespace
-	// to use for pulling prometheus and alertmanager images from registries
+	// to use for pulling elasticsearch and curator images from registries
 	// see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod
 	ImagePullSecrets []v1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 	// Number of instances to deploy for a Elasticsearch deployment.
@@ -150,9 +150,9 @@ type CuratorSpec struct {
 	// Base image to use for a Elasticsearch deployment.
 	BaseImage string `json:"baseImage,omitempty"`
 	// An optional list of references to secrets in the same namespace
-	// to use for pulling prometheus and alertmanager images from registries
+	// to use for pulling elasticsearch and curator images from registries
 	// see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod
-	//ImagePullSecrets []v1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
+	ImagePullSecrets []v1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 	// Number of instances to deploy for a Elasticsearch deployment.
 	Schedule string `json:"schedule"`
 	// The external URL the Elasticsearch instances will be available under. This is

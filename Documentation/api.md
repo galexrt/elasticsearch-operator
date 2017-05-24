@@ -12,7 +12,7 @@ Curator defines a elasticsearch curator job.
 | ----- | ----------- | ------ | -------- |
 | metadata | Standard object’s metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata | [metav1.ObjectMeta](https://kubernetes.io/docs/api-reference/v1.6/#objectmeta-v1-meta) | false |
 | spec | Specification of the desired behavior of the Elasticsearch cluster. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status | [CuratorSpec](#curatorspec) | true |
-| status | Most recent observed status of the Elasticsearch cluster. Read-only. Not included when requesting from the apiserver, only from the Elasticsearch Operator API itself. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status | *[CuratorStatus](#curatorstatus) | false |
+| status | Most recent observed status of the Elasticsearch cluster. Read-only. Not included when requesting from the apiserver, only from the Elasticsearch Operator API itself. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status | *v2alpha1.CronJobStatus | false |
 
 ## CuratorList
 
@@ -32,7 +32,8 @@ CuratorSpec Specification of the desired behavior of the Curator job. More info:
 | version | Version of Elasticsearch to be deployed. | string | false |
 | paused | When a Elasticsearch deployment is paused, no actions except for deletion will be performed on the underlying objects. | bool | false |
 | baseImage | Base image to use for a Elasticsearch deployment. | string | false |
-| schedule | An optional list of references to secrets in the same namespace to use for pulling prometheus and alertmanager images from registries see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod ImagePullSecrets []v1.LocalObjectReference `json:\"imagePullSecrets,omitempty\"` Number of instances to deploy for a Elasticsearch deployment. | string | false |
+| imagePullSecrets | An optional list of references to secrets in the same namespace to use for pulling elasticsearch and curator images from registries see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod | [][v1.LocalObjectReference](https://kubernetes.io/docs/api-reference/v1.6/#localobjectreference-v1-core) | false |
+| schedule | Number of instances to deploy for a Elasticsearch deployment. | string | true |
 | config | The external URL the Elasticsearch instances will be available under. This is necessary to generate correct URLs. This is necessary if Elasticsearch is not served from root of a DNS name. | string | false |
 | actions | The actions that should be built as a config. | string | false |
 | resources | Define resources requests and limits for single Pods. | [v1.ResourceRequirements](https://kubernetes.io/docs/api-reference/v1.6/#resourcerequirements-v1-core) | false |
@@ -46,10 +47,7 @@ CuratorStatus Most recent observed status of the Curator job. Read-only. Not inc
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | paused | Represents whether any actions on the underlaying managed objects are being performed. Only delete actions will be performed. | bool | true |
-| replicas | Total number of non-terminated pods targeted by this Elasticsearch deployment (their labels match the selector). | int32 | true |
-| updatedReplicas | Total number of non-terminated pods targeted by this Elasticsearch deployment that have the desired version spec. | int32 | true |
-| availableReplicas | Total number of available pods (ready for at least minReadySeconds) targeted by this Elasticsearch deployment. | int32 | true |
-| unavailableReplicas | Total number of unavailable pods targeted by this Elasticsearch deployment. | int32 | true |
+| lastScheduleTime | LastScheduleTime keeps information of when was the last time the job was successfully scheduled. | *metav1.Time | false |
 
 ## Elasticsearch
 
@@ -79,7 +77,7 @@ ElasticsearchSpec Specification of the desired behavior of the Elasticsearch clu
 | version | Version of Elasticsearch to be deployed. | string | false |
 | paused | When a Elasticsearch deployment is paused, no actions except for deletion will be performed on the underlying objects. | bool | false |
 | baseImage | Base image to use for a Elasticsearch deployment. | string | false |
-| imagePullSecrets | An optional list of references to secrets in the same namespace to use for pulling prometheus and alertmanager images from registries see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod | [][v1.LocalObjectReference](https://kubernetes.io/docs/api-reference/v1.6/#localobjectreference-v1-core) | false |
+| imagePullSecrets | An optional list of references to secrets in the same namespace to use for pulling elasticsearch and curator images from registries see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod | [][v1.LocalObjectReference](https://kubernetes.io/docs/api-reference/v1.6/#localobjectreference-v1-core) | false |
 | replicas | Number of instances to deploy for a Elasticsearch deployment. | *int32 | false |
 | config | The external URL the Elasticsearch instances will be available under. This is necessary to generate correct URLs. This is necessary if Elasticsearch is not served from root of a DNS name. | string | false |
 | storage | Storage spec to specify how storage shall be used. | *[StorageSpec](#storagespec) | false |
