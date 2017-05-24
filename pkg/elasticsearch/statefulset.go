@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/pkg/apis/apps/v1beta1"
 
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
+	"github.com/galexrt/elasticsearch-operator/pkg/config"
 	"github.com/pkg/errors"
 )
 
@@ -44,7 +45,7 @@ var (
 	probeTimeoutSeconds int32 = 3
 )
 
-func makeStatefulSet(p v1alpha1.Elasticsearch, old *v1beta1.StatefulSet, config *Config) (*v1beta1.StatefulSet, error) {
+func makeStatefulSet(p v1alpha1.Elasticsearch, old *v1beta1.StatefulSet, config *config.Config) (*v1beta1.StatefulSet, error) {
 	// TODO(fabxc): is this the right point to inject defaults?
 	// Ideally we would do it before storing but that's currently not possible.
 	// Potentially an update handler on first insertion.
@@ -120,6 +121,7 @@ func makeStatefulSet(p v1alpha1.Elasticsearch, old *v1beta1.StatefulSet, config 
 		statefulset.Spec.Template.Spec.Containers[0].VolumeMounts = old.Spec.Template.Spec.Containers[0].VolumeMounts
 		statefulset.Spec.Template.Spec.Volumes = old.Spec.Template.Spec.Volumes
 	}
+
 	return statefulset, nil
 }
 
@@ -170,7 +172,7 @@ func makeConfigSecret(name string) (*v1.Secret, error) {
 }
 
 func makeStatefulSetService(p *v1alpha1.Elasticsearch) *v1.Service {
-	svc := &v1.Service{
+	return &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: governingServiceName,
 			Labels: map[string]string{
@@ -191,10 +193,9 @@ func makeStatefulSetService(p *v1alpha1.Elasticsearch) *v1.Service {
 			},
 		},
 	}
-	return svc
 }
 
-func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *Config) (*v1beta1.StatefulSetSpec, error) {
+func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *config.Config) (*v1beta1.StatefulSetSpec, error) {
 	// Elasticsearch may take quite long to shut down to checkpoint existing data.
 	// Allow up to 10 minutes for clean termination.
 	terminationGracePeriod := int64(600)
@@ -210,7 +211,7 @@ func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *Config) (*v1beta1.Stateful
 		},
 	}
 
-	promVolumeMounts := []v1.VolumeMount{
+	elastVolumeMounts := []v1.VolumeMount{
 		{
 			Name:      "config",
 			ReadOnly:  true,
@@ -218,7 +219,7 @@ func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *Config) (*v1beta1.Stateful
 		},
 		{
 			Name:      volumeName(p.Name),
-			MountPath: "/var/elasticsearch/data",
+			MountPath: "/data",
 			SubPath:   subPathForStorage(p.Spec.Storage),
 		},
 	}
@@ -251,7 +252,7 @@ func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *Config) (*v1beta1.Stateful
 								Protocol:      v1.ProtocolTCP,
 							},
 						},
-						VolumeMounts: promVolumeMounts,
+						VolumeMounts: elastVolumeMounts,
 						LivenessProbe: &v1.Probe{
 							Handler: probeHandler,
 							// For larger servers, restoring a checkpoint on startup may take quite a bit of time.
@@ -295,6 +296,5 @@ func subPathForStorage(s *v1alpha1.StorageSpec) string {
 	if s == nil {
 		return ""
 	}
-
 	return "elasticsearch-data"
 }

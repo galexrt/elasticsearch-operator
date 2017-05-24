@@ -1,0 +1,10 @@
+apiVersion: "elasticsearch.zerbytes.net/v1alpha1"
+kind: Curator
+metadata:
+  name: "test"
+spec:
+  schedule: "1 0 * * *"
+  config: |
+    YOUR_CONFIG
+  actions: |
+    TEST

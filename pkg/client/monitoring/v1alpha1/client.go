@@ -41,6 +41,10 @@ func (c *MonitoringV1alpha1Client) Elasticsearches(namespace string) Elasticsear
 	return newElasticsearches(c.restClient, c.dynamicClient, namespace)
 }
 
+func (c *MonitoringV1alpha1Client) Curators(namespace string) CuratorInterface {
+	return newCurators(c.restClient, c.dynamicClient, namespace)
+}
+
 func (c *MonitoringV1alpha1Client) RESTClient() rest.Interface {
 	return c.restClient
 }

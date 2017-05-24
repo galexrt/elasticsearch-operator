@@ -17,6 +17,7 @@ package v1alpha1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/batch/v2alpha1"
 )
 
 // Elasticsearch defines a Elasticsearch deployment.
@@ -56,7 +57,7 @@ type ElasticsearchSpec struct {
 	// Base image to use for a Elasticsearch deployment.
 	BaseImage string `json:"baseImage,omitempty"`
 	// An optional list of references to secrets in the same namespace
-	// to use for pulling prometheus and alertmanager images from registries
+	// to use for pulling elasticsearch and curator images from registries
 	// see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod
 	ImagePullSecrets []v1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 	// Number of instances to deploy for a Elasticsearch deployment.
@@ -112,13 +113,74 @@ type StorageSpec struct {
 	Resources v1.ResourceRequirements `json:"resources"`
 }
 
-// BasicAuth allow an endpoint to authenticate over basic authentication
-// More info: https://prometheus.io/docs/operating/configuration/#endpoints
-type BasicAuth struct {
-	// The secret that contains the username for authenticate
-	Username v1.SecretKeySelector `json:"username,omitempty"`
-	// The secret that contains the password for authenticate
-	Password v1.SecretKeySelector `json:"password,omitempty"`
+// Curator defines a elasticsearch curator job.
+type Curator struct {
+	metav1.TypeMeta `json:",inline"`
+	// Standard object’s metadata. More info:
+	// http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	// Specification of the desired behavior of the Elasticsearch cluster. More info:
+	// http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
+	Spec CuratorSpec `json:"spec"`
+	// Most recent observed status of the Elasticsearch cluster. Read-only. Not
+	// included when requesting from the apiserver, only from the Elasticsearch
+	// Operator API itself. More info:
+	// http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
+	Status *v2alpha1.CronJobStatus `json:"status,omitempty"`
+}
+
+// CuratorList is a list of Curators.
+type CuratorList struct {
+	metav1.TypeMeta `json:",inline"`
+	// Standard list metadata
+	// More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
+	metav1.ListMeta `json:"metadata,omitempty"`
+	// List of Elasticsearches
+	Items []*Curator `json:"items"`
+}
+
+// CuratorSpec Specification of the desired behavior of the Curator job. More info:
+// http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
+type CuratorSpec struct {
+	// Version of Elasticsearch to be deployed.
+	Version string `json:"version,omitempty"`
+	// When a Elasticsearch deployment is paused, no actions except for deletion
+	// will be performed on the underlying objects.
+	Paused bool `json:"paused,omitempty"`
+	// Base image to use for a Elasticsearch deployment.
+	BaseImage string `json:"baseImage,omitempty"`
+	// An optional list of references to secrets in the same namespace
+	// to use for pulling elasticsearch and curator images from registries
+	// see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod
+	ImagePullSecrets []v1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
+	// Number of instances to deploy for a Elasticsearch deployment.
+	Schedule string `json:"schedule"`
+	// The external URL the Elasticsearch instances will be available under. This is
+	// necessary to generate correct URLs. This is necessary if Elasticsearch is not
+	// served from root of a DNS name.
+	Config string `json:"config,omitempty"`
+	// The actions that should be built as a config.
+	Actions string `json:"actions,omitempty"`
+	// Define resources requests and limits for single Pods.
+	Resources v1.ResourceRequirements `json:"resources,omitempty"`
+	// Define which Nodes the Pods are scheduled on.
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	// ServiceAccountName is the name of the ServiceAccount to use to run the
+	// Elasticsearch Pods.
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+}
+
+// CuratorStatus Most recent observed status of the Curator job. Read-only. Not
+// included when requesting from the apiserver, only from the Elasticsearch
+// Operator API itself. More info:
+// http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
+type CuratorStatus struct {
+	// Represents whether any actions on the underlaying managed objects are
+	// being performed. Only delete actions will be performed.
+	Paused bool `json:"paused"`
+	// LastScheduleTime keeps information of when was the last time the job was successfully scheduled.
+	// +optional
+	LastScheduleTime *metav1.Time `json:"lastScheduleTime,omitempty" protobuf:"bytes,4,opt,name=lastScheduleTime"`
 }
 
 // TLSConfig specifies TLS configuration parameters.

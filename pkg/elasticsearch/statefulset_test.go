@@ -23,11 +23,12 @@ import (
 	"k8s.io/client-go/pkg/apis/apps/v1beta1"
 
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
+	"github.com/galexrt/elasticsearch-operator/pkg/config"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	defaultTestConfig = &Config{}
+	defaultTestConfig = &config.Config{}
 )
 
 func TestStatefulSetLabelingAndAnnotations(t *testing.T) {
@@ -69,7 +70,7 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 								{
 									Name:      "elasticsearch--data",
 									ReadOnly:  false,
-									MountPath: "/var/elasticsearch/data",
+									MountPath: "/data",
 									SubPath:   "",
 								},
 							},
@@ -122,7 +123,7 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 								{
 									Name:      "elasticsearch--data",
 									ReadOnly:  false,
-									MountPath: "/var/elasticsearch/data",
+									MountPath: "/data",
 									SubPath:   "",
 								},
 							},

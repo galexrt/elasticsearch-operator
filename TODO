@@ -1,0 +1,7 @@
+# TODO
+
+* Add default auto config generation for:
+    * Elasticsearch
+    * Curator
+* Add "How to use" documentation
+* Cleanup code (remove unused functions, "shrink"/optimize code parts)

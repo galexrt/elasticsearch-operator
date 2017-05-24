@@ -63,9 +63,17 @@ func mustNewClient() *ga.Client {
 }
 
 func ElasticsearchCreated() {
-	send(ga.NewEvent(category, "prometheus_created"))
+	send(ga.NewEvent(category, "elasticsearch_created"))
 }
 
 func ElasticsearchDeleted() {
-	send(ga.NewEvent(category, "prometheus_deleted"))
+	send(ga.NewEvent(category, "elasticsearch_deleted"))
+}
+
+func CuratorCreated() {
+	send(ga.NewEvent(category, "curator_created"))
+}
+
+func CuratorDeleted() {
+	send(ga.NewEvent(category, "curator_deleted"))
 }

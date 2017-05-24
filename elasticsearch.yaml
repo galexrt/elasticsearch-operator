@@ -4,6 +4,7 @@ metadata:
   name: "test"
 spec:
   config: |
+    # YOUR_ELASTICSEARCH_CONFIG 
     discovery:
       zen:
         ping.unicast.hosts: ${DISCOVERY_SERVICE}

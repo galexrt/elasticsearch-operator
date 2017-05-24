@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
+	"github.com/galexrt/elasticsearch-operator/pkg/config"
 	"github.com/galexrt/elasticsearch-operator/pkg/elasticsearch"
 	"github.com/galexrt/elasticsearch-operator/pkg/k8sutil"
 )
@@ -33,7 +34,7 @@ type API struct {
 	logger  log.Logger
 }
 
-func New(conf elasticsearch.Config, l log.Logger) (*API, error) {
+func New(conf config.Config, l log.Logger) (*API, error) {
 	cfg, err := k8sutil.NewClusterConfig(conf.Host, conf.TLSInsecure, &conf.TLSConfig)
 	if err != nil {
 		return nil, err
@@ -75,7 +76,7 @@ type objectReference struct {
 	namespace string
 }
 
-func parseElasticsearchStatusUrl(path string) objectReference {
+func parseElasticsearchStatusURL(path string) objectReference {
 	matches := elasticsearchRoute.FindAllStringSubmatch(path, -1)
 	ns := ""
 	name := ""
@@ -93,7 +94,7 @@ func parseElasticsearchStatusUrl(path string) objectReference {
 }
 
 func (api *API) elasticsearchStatus(w http.ResponseWriter, req *http.Request) {
-	or := parseElasticsearchStatusUrl(req.URL.Path)
+	or := parseElasticsearchStatusURL(req.URL.Path)
 
 	p, err := api.mclient.Elasticsearches(or.namespace).Get(or.name)
 	if err != nil {
