@@ -1,0 +1,32 @@
+apiVersion: "elasticsearch.zerbytes.net/v1alpha1"
+kind: "Elasticsearch"
+metadata:
+  name: "example"
+spec:
+  config: |
+    cluster:
+      name: example
+    node:
+      master: true
+      data: true
+      name: true
+      ingest: true
+      max_local_storage_nodes: 1
+    network.host: 0.0.0.0
+    path:
+      data: /data/data
+      logs: /data/log
+    bootstrap:
+      memory_lock: true
+    http:
+      enabled: true
+      compression: true
+      cors:
+        enabled: true
+        allow-origin: "*"
+    discovery:
+      zen:
+        ping.unicast.hosts: elasticsearch-discovery
+        minimum_master_nodes: 2
+    # x-pack related settings
+    action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*,filebeat-*,metricbeat-*,packetbeat-*,winlogbeat-*,heartbeat-*
