@@ -24,6 +24,7 @@ import (
 
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
 	"github.com/galexrt/elasticsearch-operator/pkg/config"
+	"github.com/galexrt/elasticsearch-operator/pkg/curator"
 	"github.com/galexrt/elasticsearch-operator/pkg/elasticsearch"
 	"github.com/galexrt/elasticsearch-operator/pkg/k8sutil"
 )
@@ -58,13 +59,16 @@ func New(conf config.Config, l log.Logger) (*API, error) {
 }
 
 var (
-	elasticsearchRoute = regexp.MustCompile("/apis/elasticsearch.zerbytes.net/v1alpha1/namespaces/(.*)/elasticsearches/(.*)/status")
+	elasticsearchRoute = regexp.MustCompile("/apis/elasticsearch.zerbytes.net/v1alpha1/namespaces/(.*)/elasticsearchs/(.*)/status")
+	curatorRoute       = regexp.MustCompile("/apis/elasticsearch.zerbytes.net/v1alpha1/namespaces/(.*)/curators/(.*)/status")
 )
 
 func (api *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		if elasticsearchRoute.MatchString(req.URL.Path) {
 			api.elasticsearchStatus(w, req)
+		} else if curatorRoute.MatchString(req.URL.Path) {
+			api.curatorStatus(w, req)
 		} else {
 			w.WriteHeader(404)
 		}
@@ -106,6 +110,33 @@ func (api *API) elasticsearchStatus(w http.ResponseWriter, req *http.Request) {
 	}
 
 	p.Status, _, err = elasticsearch.ElasticsearchStatus(api.kclient, p)
+	if err != nil {
+		api.logger.Log("error", err)
+	}
+
+	b, err := json.Marshal(p)
+	if err != nil {
+		api.logger.Log("error", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(b)
+}
+
+func (api *API) curatorStatus(w http.ResponseWriter, req *http.Request) {
+	or := parseElasticsearchStatusURL(req.URL.Path)
+
+	p, err := api.mclient.Curators(or.namespace).Get(or.name)
+	if err != nil {
+		if k8sutil.IsResourceNotFoundError(err) {
+			w.WriteHeader(404)
+		}
+		api.logger.Log("error", err)
+		return
+	}
+
+	p.Status, _, err = curator.CuratorStatus(api.kclient, p)
 	if err != nil {
 		api.logger.Log("error", err)
 	}

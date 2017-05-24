@@ -17,7 +17,6 @@ package v1alpha1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/apis/batch/v2alpha1"
 )
 
 // Elasticsearch defines a Elasticsearch deployment.
@@ -126,7 +125,7 @@ type Curator struct {
 	// included when requesting from the apiserver, only from the Elasticsearch
 	// Operator API itself. More info:
 	// http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
-	Status *v2alpha1.CronJobStatus `json:"status,omitempty"`
+	Status *CuratorStatus `json:"status,omitempty"`
 }
 
 // CuratorList is a list of Curators.

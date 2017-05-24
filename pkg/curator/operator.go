@@ -17,6 +17,7 @@ package curator
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -426,6 +427,51 @@ func (c *Operator) sync(key string) error {
 	}
 
 	return nil
+}
+
+// CuratorStatus evaluates the current status of a Curator deployment with respect
+// to its specified resource object. It return the status and a list of pods that
+// are not updated.
+func CuratorStatus(kclient kubernetes.Interface, p *v1alpha1.Curator) (*v1alpha1.CuratorStatus, []v2alpha1.CronJob, error) {
+	res := &v1alpha1.CuratorStatus{
+		Paused: p.Spec.Paused,
+	}
+
+	jobs, err := kclient.BatchV2alpha1().CronJobs(p.Namespace).List(ListOptions(p.Name))
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "retrieving cronjob of failed")
+	}
+
+	var oldJobs []v2alpha1.CronJob
+	for _, job := range jobs.Items {
+		res.LastScheduleTime = job.Status.LastScheduleTime
+		spec, _ := makeCronJobSpec(*p, nil)
+		if needsUpdate(&job.Spec.JobTemplate.Spec.Template, spec.JobTemplate.Spec.Template) {
+			oldJobs = append(oldJobs, job)
+		}
+		break
+	}
+
+	return res, oldJobs, nil
+}
+
+// needsUpdate checks whether the given pod conforms with the pod template spec
+// for various attributes that are influenced by the Curator TPR settings.
+func needsUpdate(pod *v1.PodTemplateSpec, tmpl v1.PodTemplateSpec) bool {
+	c1 := pod.Spec.Containers[0]
+	c2 := tmpl.Spec.Containers[0]
+
+	if c1.Image != c2.Image {
+		return true
+	}
+	if !reflect.DeepEqual(c1.Resources, c2.Resources) {
+		return true
+	}
+	if !reflect.DeepEqual(c1.Args, c2.Args) {
+		return true
+	}
+
+	return false
 }
 
 func ListOptions(name string) metav1.ListOptions {
