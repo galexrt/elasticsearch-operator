@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/pkg/apis/batch/v2alpha1"
 
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
+	"github.com/galexrt/elasticsearch-operator/pkg/config"
 	"github.com/pkg/errors"
 )
 
@@ -42,7 +43,7 @@ var (
 	probeTimeoutSeconds int32 = 3
 )
 
-func makeCronjob(p v1alpha1.Curator, old *v2alpha1.CronJob, config *Config) (*v2alpha1.CronJob, error) {
+func makeCronJob(p v1alpha1.Curator, old *v2alpha1.CronJob, config *config.Config) (*v2alpha1.CronJob, error) {
 	// TODO(fabxc): is this the right point to inject defaults?
 	// Ideally we would do it before storing but that's currently not possible.
 	// Potentially an update handler on first insertion.
@@ -63,13 +64,21 @@ func makeCronjob(p v1alpha1.Curator, old *v2alpha1.CronJob, config *Config) (*v2
 
 	spec, err := makeCronJobSpec(p, config)
 	if err != nil {
-		return nil, errors.Wrap(err, "make StatefulSet spec")
+		return nil, errors.Wrap(err, "make CronJob spec")
+	}
+
+	labels := map[string]string{
+		"app":     "curator",
+		"curator": p.Name,
+	}
+	for key, val := range p.ObjectMeta.Labels {
+		labels[key] = val
 	}
 
 	cronjob := &v2alpha1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        prefixedName(p.Name),
-			Labels:      p.ObjectMeta.Labels,
+			Labels:      labels,
 			Annotations: p.ObjectMeta.Annotations,
 		},
 		Spec: *spec,
@@ -78,13 +87,14 @@ func makeCronjob(p v1alpha1.Curator, old *v2alpha1.CronJob, config *Config) (*v2
 	if old != nil {
 		cronjob.Annotations = old.Annotations
 
-		// mounted volumes are not reconciled as StatefulSets do not allow
-		// modification of the PodTemplate.
-		// TODO(brancz): remove this once StatefulSets allow modification of the
-		// PodTemplate.
+		// mounted volumes are not reconciled as CronJob do not allow
+		// modification of the JobTemplate.
+		// TODO(brancz): remove this once CronJobs allow modification of the
+		// JobTemplate.
 		cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts = old.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts
 		cronjob.Spec.JobTemplate.Spec.Template.Spec.Volumes = old.Spec.JobTemplate.Spec.Template.Spec.Volumes
 	}
+
 	return cronjob, nil
 }
 
@@ -129,15 +139,16 @@ func makeConfigSecret(name string) (*v1.Secret, error) {
 			Labels: managedByOperatorLabels,
 		},
 		Data: map[string][]byte{
-			configFilename: []byte{},
+			configFilename:  []byte{},
+			actionsFilename: []byte{},
 		},
 	}, nil
 }
 
-func makeCronJobSpec(p v1alpha1.Curator, c *Config) (*v2alpha1.CronJobSpec, error) {
+func makeCronJobSpec(p v1alpha1.Curator, c *config.Config) (*v2alpha1.CronJobSpec, error) {
 	// Curator may take quite long to shut down to save existing data.
 	// Allow up to 10 minutes for clean termination.
-	terminationGracePeriod := int64(600)
+	terminationGracePeriod := int64(60)
 
 	volumes := []v1.Volume{
 		{
@@ -161,12 +172,6 @@ func makeCronJobSpec(p v1alpha1.Curator, c *Config) (*v2alpha1.CronJobSpec, erro
 	return &v2alpha1.CronJobSpec{
 		Schedule: p.Spec.Schedule,
 		JobTemplate: v2alpha1.JobTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{
-					"app":     "curator",
-					"curator": p.Name,
-				},
-			},
 			Spec: batchv1.JobSpec{
 				Template: v1.PodTemplateSpec{
 					Spec: v1.PodSpec{
@@ -181,7 +186,8 @@ func makeCronJobSpec(p v1alpha1.Curator, c *Config) (*v2alpha1.CronJobSpec, erro
 						ServiceAccountName:            p.Spec.ServiceAccountName,
 						NodeSelector:                  p.Spec.NodeSelector,
 						TerminationGracePeriodSeconds: &terminationGracePeriod,
-						Volumes: volumes,
+						Volumes:       volumes,
+						RestartPolicy: v1.RestartPolicyOnFailure,
 					},
 				},
 			},

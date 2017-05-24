@@ -17,8 +17,6 @@ package curator
 import (
 	"regexp"
 
-	yaml "gopkg.in/yaml.v2"
-
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
 )
 
@@ -26,24 +24,10 @@ var (
 	invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 )
 
-func sanitizeLabelName(name string) string {
-	return invalidLabelCharRE.ReplaceAllString(name, "_")
-}
-
-func stringMapToMapSlice(m map[string]string) yaml.MapSlice {
-	res := yaml.MapSlice{}
-
-	for k, v := range m {
-		res = append(res, yaml.MapItem{Key: k, Value: v})
-	}
-
-	return res
-}
-
 func generateConfig(p *v1alpha1.Curator) ([]byte, error) {
-	if p.Spec.Config == "" {
-		// TODO(galexrt) generate "good" default config from the info given
-		// like number of masters is replicas-1, etc.
-	}
 	return []byte(p.Spec.Config), nil
+}
+
+func generateActions(p *v1alpha1.Curator) ([]byte, error) {
+	return []byte(p.Spec.Actions), nil
 }

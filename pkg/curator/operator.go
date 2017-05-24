@@ -23,6 +23,7 @@ import (
 
 	"github.com/galexrt/elasticsearch-operator/pkg/analytics"
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
+	"github.com/galexrt/elasticsearch-operator/pkg/config"
 	"github.com/galexrt/elasticsearch-operator/pkg/k8sutil"
 
 	"github.com/galexrt/elasticsearch-operator/third_party/workqueue"
@@ -37,17 +38,15 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/apis/apps/v1beta1"
 	"k8s.io/client-go/pkg/apis/batch/v2alpha1"
 	extensionsobj "k8s.io/client-go/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
 const (
-	tprCurator     = "curator." + v1alpha1.TPRGroup
-	configFilename = "curator.yaml"
-	actionFilename = "action_file.yml"
+	tprCurator      = "curator." + v1alpha1.TPRGroup
+	configFilename  = "curator.yaml"
+	actionsFilename = "action_file.yml"
 
 	resyncPeriod = 5 * time.Minute
 )
@@ -59,25 +58,18 @@ type Operator struct {
 	mclient *v1alpha1.MonitoringV1alpha1Client
 	logger  log.Logger
 
-	elastInf cache.SharedIndexInformer
+	curatInf cache.SharedIndexInformer
 	secrInf  cache.SharedIndexInformer
-	ssetInf  cache.SharedIndexInformer
+	cjInf    cache.SharedIndexInformer
 
 	queue workqueue.RateLimitingInterface
 
 	host   string
-	config Config
-}
-
-// Config defines configuration parameters for the Operator.
-type Config struct {
-	Host        string
-	TLSInsecure bool
-	TLSConfig   rest.TLSClientConfig
+	config config.Config
 }
 
 // New creates a new controller.
-func New(conf Config, logger log.Logger) (*Operator, error) {
+func New(conf config.Config, logger log.Logger) (*Operator, error) {
 	cfg, err := k8sutil.NewClusterConfig(conf.Host, conf.TLSInsecure, &conf.TLSConfig)
 	if err != nil {
 		return nil, err
@@ -101,14 +93,14 @@ func New(conf Config, logger log.Logger) (*Operator, error) {
 		config:  conf,
 	}
 
-	c.elastInf = cache.NewSharedIndexInformer(
+	c.curatInf = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc:  mclient.Curators(api.NamespaceAll).List,
 			WatchFunc: mclient.Curators(api.NamespaceAll).Watch,
 		},
 		&v1alpha1.Curator{}, resyncPeriod, cache.Indexers{},
 	)
-	c.elastInf.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	c.curatInf.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.handleAddCurator,
 		DeleteFunc: c.handleDeleteCurator,
 		UpdateFunc: c.handleUpdateCurator,
@@ -124,14 +116,14 @@ func New(conf Config, logger log.Logger) (*Operator, error) {
 		UpdateFunc: c.handleSecretUpdate,
 	})
 
-	c.ssetInf = cache.NewSharedIndexInformer(
-		cache.NewListWatchFromClient(c.kclient.Apps().RESTClient(), "cronjobs", api.NamespaceAll, nil),
-		&v1beta1.StatefulSet{}, resyncPeriod, cache.Indexers{},
+	c.cjInf = cache.NewSharedIndexInformer(
+		cache.NewListWatchFromClient(c.kclient.BatchV2alpha1().RESTClient(), "cronjobs", api.NamespaceAll, nil),
+		&v2alpha1.CronJob{}, resyncPeriod, cache.Indexers{},
 	)
-	c.ssetInf.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.handleAddStatefulSet,
-		DeleteFunc: c.handleDeleteStatefulSet,
-		UpdateFunc: c.handleUpdateStatefulSet,
+	c.cjInf.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.handleAddCronJob,
+		DeleteFunc: c.handleDeleteCronJob,
+		UpdateFunc: c.handleUpdateCronJob,
 	})
 
 	return c, nil
@@ -169,9 +161,9 @@ func (c *Operator) Run(stopc <-chan struct{}) error {
 
 	go c.worker()
 
-	go c.elastInf.Run(stopc)
+	go c.curatInf.Run(stopc)
 	go c.secrInf.Run(stopc)
-	go c.ssetInf.Run(stopc)
+	go c.cjInf.Run(stopc)
 
 	<-stopc
 	return nil
@@ -301,7 +293,7 @@ func (c *Operator) enqueue(obj interface{}) {
 
 // enqueueForNamespace enqueues all Curator object keys that belong to the given namespace.
 func (c *Operator) enqueueForNamespace(ns string) {
-	cache.ListAll(c.elastInf.GetStore(), labels.Everything(), func(obj interface{}) {
+	cache.ListAll(c.curatInf.GetStore(), labels.Everything(), func(obj interface{}) {
 		p := obj.(*v1alpha1.Curator)
 		if p.Namespace == ns {
 			c.enqueue(p)
@@ -335,14 +327,14 @@ func (c *Operator) processNextWorkItem() bool {
 	return true
 }
 
-func (c *Operator) curatorForStatefulSet(sset interface{}) *v1alpha1.Curator {
-	key, ok := c.keyFunc(sset)
+func (c *Operator) curatorForCronJob(cj interface{}) *v1alpha1.Curator {
+	key, ok := c.keyFunc(cj)
 	if !ok {
 		return nil
 	}
 
-	promKey := statefulSetKeyToCuratorKey(key)
-	p, exists, err := c.elastInf.GetStore().GetByKey(promKey)
+	promKey := cronJobKeyToCuratorKey(key)
+	p, exists, err := c.curatInf.GetStore().GetByKey(promKey)
 	if err != nil {
 		c.logger.Log("msg", "Curator lookup failed", "err", err)
 		return nil
@@ -353,39 +345,39 @@ func (c *Operator) curatorForStatefulSet(sset interface{}) *v1alpha1.Curator {
 	return p.(*v1alpha1.Curator)
 }
 
-func curatorNameFromStatefulSetName(name string) string {
+func curatorNameFromCronJobName(name string) string {
 	return strings.TrimPrefix(name, "curator-")
 }
 
-func statefulSetNameFromCuratorName(name string) string {
+func cronJobNameFromCuratorName(name string) string {
 	return "curator-" + name
 }
 
-func statefulSetKeyToCuratorKey(key string) string {
+func cronJobKeyToCuratorKey(key string) string {
 	keyParts := strings.Split(key, "/")
 	return keyParts[0] + "/" + strings.TrimPrefix(keyParts[1], "curator-")
 }
 
-func curatorKeyToStatefulSetKey(key string) string {
+func curatorKeyToCronJobKey(key string) string {
 	keyParts := strings.Split(key, "/")
 	return keyParts[0] + "/curator-" + keyParts[1]
 }
 
-func (c *Operator) handleDeleteStatefulSet(obj interface{}) {
-	if ps := c.curatorForStatefulSet(obj); ps != nil {
+func (c *Operator) handleDeleteCronJob(obj interface{}) {
+	if ps := c.curatorForCronJob(obj); ps != nil {
 		c.enqueue(ps)
 	}
 }
 
-func (c *Operator) handleAddStatefulSet(obj interface{}) {
-	if ps := c.curatorForStatefulSet(obj); ps != nil {
+func (c *Operator) handleAddCronJob(obj interface{}) {
+	if ps := c.curatorForCronJob(obj); ps != nil {
 		c.enqueue(ps)
 	}
 }
 
-func (c *Operator) handleUpdateStatefulSet(oldo, curo interface{}) {
-	old := oldo.(*v1beta1.StatefulSet)
-	cur := curo.(*v1beta1.StatefulSet)
+func (c *Operator) handleUpdateCronJob(oldo, curo interface{}) {
+	old := oldo.(*v2alpha1.CronJob)
+	cur := curo.(*v2alpha1.CronJob)
 
 	c.logger.Log("msg", "update handler", "old", old.ResourceVersion, "cur", cur.ResourceVersion)
 
@@ -395,13 +387,13 @@ func (c *Operator) handleUpdateStatefulSet(oldo, curo interface{}) {
 		return
 	}
 
-	if ps := c.curatorForStatefulSet(cur); ps != nil {
+	if ps := c.curatorForCronJob(cur); ps != nil {
 		c.enqueue(ps)
 	}
 }
 
 func (c *Operator) sync(key string) error {
-	obj, exists, err := c.elastInf.GetIndexer().GetByKey(key)
+	obj, exists, err := c.curatInf.GetIndexer().GetByKey(key)
 	if err != nil {
 		return err
 	}
@@ -411,7 +403,7 @@ func (c *Operator) sync(key string) error {
 		// Doing so just based on the deletion event is not reliable, so
 		// we have to garbage collect the controller-created resources in some other way.
 		//
-		// Let's rely on the index key matching that of the created configmap and StatefulSet for now.
+		// Let's rely on the index key matching that of the created configmap and CronJob for now.
 		// This does not work if we delete Curator resources as the
 		// controller is not running – that could be solved via garbage collection later.
 		return c.destroyCurator(key)
@@ -437,28 +429,28 @@ func (c *Operator) sync(key string) error {
 		return errors.Wrap(err, "creating empty config file failed")
 	}
 
-	ssetClient := c.kclient.BatchV2alpha1().CronJobs(p.Namespace)
-	// Ensure we have a StatefulSet running Curator deployed.
-	obj, exists, err = c.ssetInf.GetIndexer().GetByKey(curatorKeyToStatefulSetKey(key))
+	cjClient := c.kclient.BatchV2alpha1().CronJobs(p.Namespace)
+	// Ensure we have a CronJob running Curator deployed.
+	obj, exists, err = c.cjInf.GetIndexer().GetByKey(curatorKeyToCronJobKey(key))
 	if err != nil {
 		return errors.Wrap(err, "retrieving cronjob failed")
 	}
 
 	if !exists {
-		sset, err := makeCronjob(*p, nil, &c.config)
+		cj, err := makeCronJob(*p, nil, &c.config)
 		if err != nil {
 			return errors.Wrap(err, "creating cronjob failed")
 		}
-		if _, err := ssetClient.Create(sset); err != nil {
+		if _, err := cjClient.Create(cj); err != nil {
 			return errors.Wrap(err, "creating cronjob failed")
 		}
 		return nil
 	}
-	sset, err := makeCronjob(*p, obj.(*v2alpha1.CronJob), &c.config)
+	cj, err := makeCronJob(*p, obj.(*v2alpha1.CronJob), &c.config)
 	if err != nil {
 		return errors.Wrap(err, "updating cronjob failed")
 	}
-	if _, err := ssetClient.Update(sset); err != nil {
+	if _, err := cjClient.Update(cj); err != nil {
 		return errors.Wrap(err, "updating cronjob failed")
 	}
 
@@ -480,23 +472,15 @@ func ListOptions(name string) metav1.ListOptions {
 }
 
 // syncVersion ensures that all running pods for a Curator have the required version.
-// It kills pods with the wrong version one-after-one and lets the StatefulSet controller
+// It kills pods with the wrong version one-after-one and lets the CronJob controller
 // create new pods.
 //
-// TODO(fabxc): remove this once the StatefulSet controller learns how to do rolling updates.
+// TODO(fabxc): remove this once the CronJob controller learns how to do rolling updates.
 func (c *Operator) syncVersion(key string, p *v1alpha1.Curator) error {
-	status, oldPods, err := CuratorStatus(c.kclient, p)
+	_, _, err := CuratorStatus(c.kclient, p)
 	if err != nil {
 		return errors.Wrap(err, "retrieving Curator status failed")
 	}
-
-	// If the StatefulSet is still busy scaling, don't interfere by killing pods.
-	// We enqueue ourselves again to until the StatefulSet is ready.
-	expectedSchedule := "1 0 * * *"
-	if p.Spec.Schedule != "" {
-		expectedSchedule = p.Spec.Schedule
-	}
-	// TODO(galexrt) check if schedule is changed
 
 	return nil
 }
@@ -504,45 +488,32 @@ func (c *Operator) syncVersion(key string, p *v1alpha1.Curator) error {
 // CuratorStatus evaluates the current status of a Curator deployment with respect
 // to its specified resource object. It return the status and a list of pods that
 // are not updated.
-func CuratorStatus(kclient kubernetes.Interface, p *v1alpha1.Curator) (*v1alpha1.CuratorStatus, []v1.Pod, error) {
-	res := &v1alpha1.CuratorStatus{Paused: p.Spec.Paused}
+func CuratorStatus(kclient kubernetes.Interface, p *v1alpha1.Curator) (*v1alpha1.CuratorStatus, []v2alpha1.CronJob, error) {
+	res := &v1alpha1.CuratorStatus{
+		Paused: p.Spec.Paused,
+	}
 
-	pods, err := kclient.Core().Pods(p.Namespace).List(ListOptions(p.Name))
+	jobs, err := kclient.BatchV2alpha1().CronJobs(p.Namespace).List(ListOptions(p.Name))
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "retrieving pods of failed")
-	}
-	sset, err := kclient.Apps().StatefulSets(p.Namespace).Get(statefulSetNameFromCuratorName(p.Name), metav1.GetOptions{})
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "retrieving stateful set failed")
+		return nil, nil, errors.Wrap(err, "retrieving cronjob of failed")
 	}
 
-	res.Replicas = int32(len(pods.Items))
-
-	var oldPods []v1.Pod
-	for _, pod := range pods.Items {
-		ready, err := k8sutil.PodRunningAndReady(pod)
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "cannot determine pod ready state")
+	var oldJobs []v2alpha1.CronJob
+	for _, job := range jobs.Items {
+		res.LastScheduleTime = job.Status.LastScheduleTime
+		spec, _ := makeCronJobSpec(*p, nil)
+		if needsUpdate(&job.Spec.JobTemplate.Spec.Template, spec.JobTemplate.Spec.Template) {
+			oldJobs = append(oldJobs, job)
 		}
-		if ready {
-			res.AvailableReplicas++
-			// TODO(fabxc): detect other fields of the pod template that are mutable.
-			if needsUpdate(&pod, sset.Spec.Template) {
-				oldPods = append(oldPods, pod)
-			} else {
-				res.UpdatedReplicas++
-			}
-			continue
-		}
-		res.UnavailableReplicas++
+		break
 	}
 
-	return res, oldPods, nil
+	return res, oldJobs, nil
 }
 
 // needsUpdate checks whether the given pod conforms with the pod template spec
-// for various attributes that are influenced by the Curator TPR settings.
-func needsUpdate(pod *v1.Pod, tmpl v1.PodTemplateSpec) bool {
+// for various attributes that are influenced by the Elasticsearch TPR settings.
+func needsUpdate(pod *v1.PodTemplateSpec, tmpl v1.PodTemplateSpec) bool {
 	c1 := pod.Spec.Containers[0]
 	c2 := tmpl.Spec.Containers[0]
 
@@ -560,30 +531,30 @@ func needsUpdate(pod *v1.Pod, tmpl v1.PodTemplateSpec) bool {
 }
 
 func (c *Operator) destroyCurator(key string) error {
-	ssetKey := curatorKeyToStatefulSetKey(key)
-	obj, exists, err := c.ssetInf.GetStore().GetByKey(ssetKey)
+	cjKey := curatorKeyToCronJobKey(key)
+	obj, exists, err := c.cjInf.GetStore().GetByKey(cjKey)
 	if err != nil {
 		return errors.Wrap(err, "retrieving cronjob from cache failed")
 	}
 	if !exists {
 		return nil
 	}
-	sset := obj.(*v1beta1.StatefulSet)
-	*sset.Spec.Replicas = 0
+	cj := obj.(*v2alpha1.CronJob)
+	*cj.Spec.Suspend = true
 
 	// Update the replica count to 0 and wait for all pods to be deleted.
-	ssetClient := c.kclient.Apps().StatefulSets(sset.Namespace)
+	cjClient := c.kclient.BatchV2alpha1().CronJobs(cj.Namespace)
 
-	if _, err := ssetClient.Update(sset); err != nil {
-		return errors.Wrap(err, "updating cronjob for scale-down failed")
+	if _, err := cjClient.Update(cj); err != nil {
+		return errors.Wrap(err, "updating cronjob for suspend failed")
 	}
 
-	podClient := c.kclient.Core().Pods(sset.Namespace)
+	podClient := c.kclient.Core().Pods(cj.Namespace)
 
-	// TODO(fabxc): temprorary solution until StatefulSet status provides necessary info to know
+	// TODO(fabxc): temprorary solution until CronJob status provides necessary info to know
 	// whether scale-down completed.
 	for {
-		pods, err := podClient.List(ListOptions(curatorNameFromStatefulSetName(sset.Name)))
+		pods, err := podClient.List(ListOptions(curatorNameFromCronJobName(cj.Name)))
 		if err != nil {
 			return errors.Wrap(err, "retrieving pods of cronjob failed")
 		}
@@ -593,16 +564,16 @@ func (c *Operator) destroyCurator(key string) error {
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	// StatefulSet scaled down, we can delete it.
-	if err := ssetClient.Delete(sset.Name, nil); err != nil {
+	// CronJob scaled down, we can delete it.
+	if err := cjClient.Delete(cj.Name, nil); err != nil {
 		return errors.Wrap(err, "deleting cronjob failed")
 	}
 
 	// Delete the auto-generate configuration.
 	// TODO(fabxc): add an ownerRef at creation so we don't delete Secrets
 	// manually created for Curator servers with no ServiceMonitor selectors.
-	s := c.kclient.Core().Secrets(sset.Namespace)
-	secret, err := s.Get(sset.Name, metav1.GetOptions{})
+	s := c.kclient.Core().Secrets(cj.Namespace)
+	secret, err := s.Get(cj.Name, metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return errors.Wrap(err, "retrieving config Secret failed")
 	}
@@ -613,7 +584,7 @@ func (c *Operator) destroyCurator(key string) error {
 
 	value, found := secret.Labels[managedByOperatorLabel]
 	if found && value == managedByOperatorLabelValue {
-		if err := s.Delete(sset.Name, nil); err != nil {
+		if err := s.Delete(cj.Name, nil); err != nil {
 			return errors.Wrap(err, "deleting config Secret failed")
 		}
 	}
@@ -631,6 +602,11 @@ func (c *Operator) createConfig(p *v1alpha1.Curator) error {
 		return errors.Wrap(err, "generating config failed")
 	}
 
+	actions, err := generateActions(p)
+	if err != nil {
+		return errors.Wrap(err, "generating actions failed")
+	}
+
 	// TODO(galexrt)
 	s, err := makeConfigSecret(p.Name)
 	if err != nil {
@@ -640,6 +616,7 @@ func (c *Operator) createConfig(p *v1alpha1.Curator) error {
 		"generated": "true",
 	}
 	s.Data[configFilename] = []byte(conf)
+	s.Data[actionsFilename] = []byte(actions)
 
 	curSecret, err := sClient.Get(s.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
@@ -648,17 +625,34 @@ func (c *Operator) createConfig(p *v1alpha1.Curator) error {
 		return err
 	}
 
+	okay := false
+
 	generatedConf := s.Data[configFilename]
 	curConfig, curConfigFound := curSecret.Data[configFilename]
 	if curConfigFound {
 		if bytes.Equal(curConfig, generatedConf) {
 			c.logger.Log("msg", "updating config skipped, no configuration change")
-			return nil
+			okay = true
 		} else {
 			c.logger.Log("msg", "current config has changed")
 		}
 	} else {
 		c.logger.Log("msg", "no current config found", "currentConfigFound", curConfigFound)
+	}
+
+	generatedActions := s.Data[actionsFilename]
+	curActions, curActionsFound := curSecret.Data[actionsFilename]
+	if curActionsFound {
+		if bytes.Equal(curActions, generatedActions) {
+			c.logger.Log("msg", "updating actions skipped, no configuration change")
+			if okay {
+				return nil
+			}
+		} else {
+			c.logger.Log("msg", "current actions has changed")
+		}
+	} else {
+		c.logger.Log("msg", "no current actions found", "currentActionsFound", curActionsFound)
 	}
 
 	c.logger.Log("msg", "updating configuration")

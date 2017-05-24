@@ -28,12 +28,14 @@ import (
 
 	"github.com/galexrt/elasticsearch-operator/pkg/analytics"
 	"github.com/galexrt/elasticsearch-operator/pkg/api"
+	"github.com/galexrt/elasticsearch-operator/pkg/config"
+	"github.com/galexrt/elasticsearch-operator/pkg/curator"
 	"github.com/galexrt/elasticsearch-operator/pkg/elasticsearch"
 	"github.com/go-kit/kit/log"
 )
 
 var (
-	cfg              elasticsearch.Config
+	cfg              config.Config
 	analyticsEnabled bool
 )
 
@@ -50,6 +52,7 @@ func init() {
 	flagset.Parse(os.Args[1:])
 }
 
+// Main runs the operator objects and servers the api
 func Main() int {
 	logger := log.NewLogfmtLogger(os.Stdout)
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
@@ -65,6 +68,10 @@ func Main() int {
 	}
 
 	cr, err := curator.New(cfg, log.With(logger, "component", "curatoroperator"))
+	if err != nil {
+		fmt.Fprint(os.Stderr, err)
+		return 1
+	}
 
 	web, err := api.New(cfg, log.With(logger, "component", "api"))
 	if err != nil {

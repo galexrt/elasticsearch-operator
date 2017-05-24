@@ -25,6 +25,7 @@ import (
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
 	"github.com/galexrt/elasticsearch-operator/pkg/k8sutil"
 
+	"github.com/galexrt/elasticsearch-operator/pkg/config"
 	"github.com/galexrt/elasticsearch-operator/third_party/workqueue"
 	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
@@ -39,7 +40,6 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/apps/v1beta1"
 	extensionsobj "k8s.io/client-go/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -64,18 +64,11 @@ type Operator struct {
 	queue workqueue.RateLimitingInterface
 
 	host   string
-	config Config
-}
-
-// Config defines configuration parameters for the Operator.
-type Config struct {
-	Host        string
-	TLSInsecure bool
-	TLSConfig   rest.TLSClientConfig
+	config config.Config
 }
 
 // New creates a new controller.
-func New(conf Config, logger log.Logger) (*Operator, error) {
+func New(conf config.Config, logger log.Logger) (*Operator, error) {
 	cfg, err := k8sutil.NewClusterConfig(conf.Host, conf.TLSInsecure, &conf.TLSConfig)
 	if err != nil {
 		return nil, err

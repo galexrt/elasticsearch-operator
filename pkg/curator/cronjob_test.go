@@ -20,18 +20,19 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/apis/apps/v1beta1"
 	"k8s.io/client-go/pkg/apis/batch/v2alpha1"
 
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
+	"github.com/galexrt/elasticsearch-operator/pkg/config"
 	"github.com/stretchr/testify/require"
+	batchv1 "k8s.io/client-go/pkg/apis/batch/v1"
 )
 
 var (
-	defaultTestConfig = &Config{}
+	defaultTestConfig = &config.Config{}
 )
 
-func TestStatefulSetLabelingAndAnnotations(t *testing.T) {
+func TestCronJobLabelingAndAnnotations(t *testing.T) {
 	labels := map[string]string{
 		"testlabel": "testlabelvalue",
 	}
@@ -39,7 +40,7 @@ func TestStatefulSetLabelingAndAnnotations(t *testing.T) {
 		"testannotation": "testannotationvalue",
 	}
 
-	sset, err := makeCronjob(v1alpha1.Curator{
+	cj, err := makeCronJob(v1alpha1.Curator{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels,
 			Annotations: annotations,
@@ -48,47 +49,42 @@ func TestStatefulSetLabelingAndAnnotations(t *testing.T) {
 
 	require.NoError(t, err)
 
-	if !reflect.DeepEqual(labels, sset.Labels) || !reflect.DeepEqual(annotations, sset.Annotations) {
-		t.Fatal("Labels or Annotations are not properly being propagated to the StatefulSet")
+	labels["app"] = "curator"
+	labels["curator"] = ""
+
+	if !reflect.DeepEqual(labels, cj.Labels) || !reflect.DeepEqual(annotations, cj.Annotations) {
+		t.Fatal("Labels or Annotations are not properly being propagated to the CronJob")
 	}
 }
 
-func TestStatefulSetVolumeInitial(t *testing.T) {
-	expected := &v1beta1.StatefulSet{
-		Spec: v1beta1.StatefulSetSpec{
-			Template: v1.PodTemplateSpec{
-				Spec: v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							VolumeMounts: []v1.VolumeMount{
+func TestCronJobVolumeInitial(t *testing.T) {
+	expected := &v2alpha1.CronJob{
+		Spec: v2alpha1.CronJobSpec{
+			JobTemplate: v2alpha1.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{
 								{
-									Name:      "config",
-									ReadOnly:  true,
-									MountPath: "/etc/elasticsearch/config",
-									SubPath:   "",
-								},
-								{
-									Name:      "elasticsearch--data",
-									ReadOnly:  false,
-									MountPath: "/var/elasticsearch/data",
-									SubPath:   "",
+									VolumeMounts: []v1.VolumeMount{
+										{
+											Name:      "config",
+											ReadOnly:  true,
+											MountPath: "/etc/curator/config",
+											SubPath:   "",
+										},
+									},
 								},
 							},
-						},
-					},
-					Volumes: []v1.Volume{
-						{
-							Name: "config",
-							VolumeSource: v1.VolumeSource{
-								Secret: &v1.SecretVolumeSource{
-									SecretName: configSecretName(""),
+							Volumes: []v1.Volume{
+								{
+									Name: "config",
+									VolumeSource: v1.VolumeSource{
+										Secret: &v1.SecretVolumeSource{
+											SecretName: configSecretName(""),
+										},
+									},
 								},
-							},
-						},
-						{
-							Name: "elasticsearch--data",
-							VolumeSource: v1.VolumeSource{
-								EmptyDir: &v1.EmptyDirVolumeSource{},
 							},
 						},
 					},
@@ -97,38 +93,42 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 		},
 	}
 
-	sset, err := makeCronjob(v2alpha1.CronJob{}, nil, defaultTestConfig)
+	cj, err := makeCronJob(v1alpha1.Curator{}, nil, defaultTestConfig)
 
 	require.NoError(t, err)
 
-	if !reflect.DeepEqual(expected.Spec.JobTemplate.Spec.Template.Spec.Volumes, sset.Spec.JobTemplate.Spec.Template.Spec.Volumes) || !reflect.DeepEqual(expected.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts, sset.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts) {
+	if !reflect.DeepEqual(expected.Spec.JobTemplate.Spec.Template.Spec.Volumes, cj.Spec.JobTemplate.Spec.Template.Spec.Volumes) || !reflect.DeepEqual(expected.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts, cj.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts) {
 		t.Fatal("Volumes mounted in a Pod are not created correctly initially.")
 	}
 }
 
-func TestStatefulSetVolumeSkip(t *testing.T) {
-	old := &v1beta1.StatefulSet{
-		Spec: v1beta1.StatefulSetSpec{
-			Template: v1.PodTemplateSpec{
-				Spec: v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							VolumeMounts: []v1.VolumeMount{
+func TestCronJobVolumeSkip(t *testing.T) {
+	old := &v2alpha1.CronJob{
+		Spec: v2alpha1.CronJobSpec{
+			JobTemplate: v2alpha1.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{
 								{
-									Name:      "config",
-									ReadOnly:  true,
-									MountPath: "/etc/elasticsearch/config",
-									SubPath:   "",
+									VolumeMounts: []v1.VolumeMount{
+										{
+											Name:      "config",
+											ReadOnly:  true,
+											MountPath: "/etc/elasticsearch/config",
+											SubPath:   "",
+										},
+									},
 								},
 							},
-						},
-					},
-					Volumes: []v1.Volume{
-						{
-							Name: "config",
-							VolumeSource: v1.VolumeSource{
-								Secret: &v1.SecretVolumeSource{
-									SecretName: configSecretName(""),
+							Volumes: []v1.Volume{
+								{
+									Name: "config",
+									VolumeSource: v1.VolumeSource{
+										Secret: &v1.SecretVolumeSource{
+											SecretName: configSecretName(""),
+										},
+									},
 								},
 							},
 						},
@@ -138,12 +138,12 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 		},
 	}
 
-	sset, err := makeCronjob(v1alpha1.Elasticsearch{}, old, defaultTestConfig)
+	cj, err := makeCronJob(v1alpha1.Curator{}, old, defaultTestConfig)
 
 	require.NoError(t, err)
 
-	if !reflect.DeepEqual(old.Spec.Template.Spec.Volumes, sset.Spec.Template.Spec.Volumes) || !reflect.DeepEqual(old.Spec.Template.Spec.Containers[0].VolumeMounts, sset.Spec.Template.Spec.Containers[0].VolumeMounts) {
-		t.Fatal("Volumes mounted in a Pod should not be reconciled.")
+	if !reflect.DeepEqual(old.Spec.JobTemplate.Spec.Template.Spec.Volumes, cj.Spec.JobTemplate.Spec.Template.Spec.Volumes) || !reflect.DeepEqual(old.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts, cj.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts) {
+		t.Fatal("Volumes mounted in a CronJob should not be reconciled.")
 	}
 }
 

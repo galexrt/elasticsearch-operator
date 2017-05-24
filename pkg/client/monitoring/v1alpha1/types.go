@@ -17,6 +17,7 @@ package v1alpha1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/batch/v2alpha1"
 )
 
 // Elasticsearch defines a Elasticsearch deployment.
@@ -125,7 +126,7 @@ type Curator struct {
 	// included when requesting from the apiserver, only from the Elasticsearch
 	// Operator API itself. More info:
 	// http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
-	Status *CuratorStatus `json:"status,omitempty"`
+	Status *v2alpha1.CronJobStatus `json:"status,omitempty"`
 }
 
 // CuratorList is a list of Curators.
@@ -153,7 +154,7 @@ type CuratorSpec struct {
 	// see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod
 	//ImagePullSecrets []v1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 	// Number of instances to deploy for a Elasticsearch deployment.
-	Schedule string `json:"schedule,omitempty"`
+	Schedule string `json:"schedule"`
 	// The external URL the Elasticsearch instances will be available under. This is
 	// necessary to generate correct URLs. This is necessary if Elasticsearch is not
 	// served from root of a DNS name.
@@ -177,17 +178,9 @@ type CuratorStatus struct {
 	// Represents whether any actions on the underlaying managed objects are
 	// being performed. Only delete actions will be performed.
 	Paused bool `json:"paused"`
-	// Total number of non-terminated pods targeted by this Elasticsearch deployment
-	// (their labels match the selector).
-	Replicas int32 `json:"replicas"`
-	// Total number of non-terminated pods targeted by this Elasticsearch deployment
-	// that have the desired version spec.
-	UpdatedReplicas int32 `json:"updatedReplicas"`
-	// Total number of available pods (ready for at least minReadySeconds)
-	// targeted by this Elasticsearch deployment.
-	AvailableReplicas int32 `json:"availableReplicas"`
-	// Total number of unavailable pods targeted by this Elasticsearch deployment.
-	UnavailableReplicas int32 `json:"unavailableReplicas"`
+	// LastScheduleTime keeps information of when was the last time the job was successfully scheduled.
+	// +optional
+	LastScheduleTime *metav1.Time `json:"lastScheduleTime,omitempty" protobuf:"bytes,4,opt,name=lastScheduleTime"`
 }
 
 // TLSConfig specifies TLS configuration parameters.
