@@ -30,6 +30,8 @@ const (
 type MonitoringV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	ElasticsearchesGetter
+	CuratoresGetter
+	ElasticsearchClustersGetter
 }
 
 type MonitoringV1alpha1Client struct {

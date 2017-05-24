@@ -12,7 +12,7 @@ Curator defines a elasticsearch curator job.
 | ----- | ----------- | ------ | -------- |
 | metadata | Standard object’s metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata | [metav1.ObjectMeta](https://kubernetes.io/docs/api-reference/v1.6/#objectmeta-v1-meta) | false |
 | spec | Specification of the desired behavior of the Elasticsearch cluster. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status | [CuratorSpec](#curatorspec) | true |
-| status | Most recent observed status of the Elasticsearch cluster. Read-only. Not included when requesting from the apiserver, only from the Elasticsearch Operator API itself. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status | *v2alpha1.CronJobStatus | false |
+| status | Most recent observed status of the Elasticsearch cluster. Read-only. Not included when requesting from the apiserver, only from the Elasticsearch Operator API itself. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status | *[CuratorStatus](#curatorstatus) | false |
 
 ## CuratorList
 

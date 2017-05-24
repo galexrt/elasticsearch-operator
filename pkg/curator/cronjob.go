@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	defaultBaseImage = "quay.io/galexrt/curator"
-	defaultVersion   = "5.4.0"
+	defaultBaseImage = "bobrik/curator"
+	defaultVersion   = "latest"
 )
 
 var (
