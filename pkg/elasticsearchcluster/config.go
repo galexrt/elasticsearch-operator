@@ -25,5 +25,9 @@ var (
 )
 
 func generateConfig(p *v1alpha1.Elasticsearch) ([]byte, error) {
+	if p.Spec.Config == "" {
+		// TODO(galexrt) generate "good" default config from the info given
+		// like number of masters is replicas-1, etc.
+	}
 	return []byte(p.Spec.Config), nil
 }

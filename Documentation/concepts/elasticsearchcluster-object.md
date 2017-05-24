@@ -1,4 +1,4 @@
-# elasticsearch-object
+# elasticsearchcluster-object
 ```
 apiVersion: "elasticsearch.zerbytes.net/v1alpha1"
 kind: "Elasticsearch"
