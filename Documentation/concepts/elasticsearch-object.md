@@ -6,6 +6,9 @@ metadata:
   name: "example"
 spec:
   version: "5.4.0"
+  # automatically calculate java memory opts
+  auto_java_memory: true
+  java_opts: ""
   additional_config: |
     action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*,filebeat-*,metricbeat-*,packetbeat-*,winlogbeat-*,heartbeat-*
   master:
@@ -16,6 +19,7 @@ spec:
         memory: "16Gi"
       requests:
         memory: "14Gi"
+    java_opts: ""
     additional_config: |
       # test
   data:
@@ -26,8 +30,14 @@ spec:
         memory: "16Gi"
       requests:
         memory: "14Gi"
+    java_opts: ""
     additional_config: |
       # test
+    storage:
+      class: rbd
+      resources:
+        requests:
+          storage: 50Gi
   ingest:
     replicas: 2
     resources:
@@ -36,11 +46,7 @@ spec:
         memory: "16Gi"
       requests:
         memory: "14Gi"
-    storage:
-      class: rbd
-      resources:
-        requests:
-          storage: 50Gi
+    java_opts: ""
     additional_config: |
       # test
 ```

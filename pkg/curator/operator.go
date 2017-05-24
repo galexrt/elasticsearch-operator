@@ -210,34 +210,6 @@ func (c *Operator) handleUpdateCurator(old, cur interface{}) {
 	c.enqueue(key)
 }
 
-// nodeAddresses returns the provided node's address, based on the priority:
-// 1. NodeInternalIP
-// 2. NodeExternalIP
-// 3. NodeLegacyHostIP
-// 3. NodeHostName
-//
-// Copied from github.com/prometheus/prometheus/discovery/kubernetes/node.go
-func nodeAddress(node *v1.Node) (string, map[v1.NodeAddressType][]string, error) {
-	m := map[v1.NodeAddressType][]string{}
-	for _, a := range node.Status.Addresses {
-		m[a.Type] = append(m[a.Type], a.Address)
-	}
-
-	if addresses, ok := m[v1.NodeInternalIP]; ok {
-		return addresses[0], m, nil
-	}
-	if addresses, ok := m[v1.NodeExternalIP]; ok {
-		return addresses[0], m, nil
-	}
-	if addresses, ok := m[v1.NodeAddressType(api.NodeLegacyHostIP)]; ok {
-		return addresses[0], m, nil
-	}
-	if addresses, ok := m[v1.NodeHostName]; ok {
-		return addresses[0], m, nil
-	}
-	return "", m, fmt.Errorf("host address unknown")
-}
-
 func (c *Operator) handleSecretDelete(obj interface{}) {
 	o, ok := c.getObject(obj)
 	if ok {
@@ -454,34 +426,6 @@ func (c *Operator) sync(key string) error {
 		return errors.Wrap(err, "updating cronjob failed")
 	}
 
-	err = c.syncVersion(key, p)
-	if err != nil {
-		return errors.Wrap(err, "syncing version failed")
-	}
-
-	return nil
-}
-
-func ListOptions(name string) metav1.ListOptions {
-	return metav1.ListOptions{
-		LabelSelector: fields.SelectorFromSet(fields.Set(map[string]string{
-			"app":     "curator",
-			"curator": name,
-		})).String(),
-	}
-}
-
-// syncVersion ensures that all running pods for a Curator have the required version.
-// It kills pods with the wrong version one-after-one and lets the CronJob controller
-// create new pods.
-//
-// TODO(fabxc): remove this once the CronJob controller learns how to do rolling updates.
-func (c *Operator) syncVersion(key string, p *v1alpha1.Curator) error {
-	_, _, err := CuratorStatus(c.kclient, p)
-	if err != nil {
-		return errors.Wrap(err, "retrieving Curator status failed")
-	}
-
 	return nil
 }
 
@@ -512,7 +456,7 @@ func CuratorStatus(kclient kubernetes.Interface, p *v1alpha1.Curator) (*v1alpha1
 }
 
 // needsUpdate checks whether the given pod conforms with the pod template spec
-// for various attributes that are influenced by the Elasticsearch TPR settings.
+// for various attributes that are influenced by the Curator TPR settings.
 func needsUpdate(pod *v1.PodTemplateSpec, tmpl v1.PodTemplateSpec) bool {
 	c1 := pod.Spec.Containers[0]
 	c2 := tmpl.Spec.Containers[0]
@@ -528,6 +472,15 @@ func needsUpdate(pod *v1.PodTemplateSpec, tmpl v1.PodTemplateSpec) bool {
 	}
 
 	return false
+}
+
+func ListOptions(name string) metav1.ListOptions {
+	return metav1.ListOptions{
+		LabelSelector: fields.SelectorFromSet(fields.Set(map[string]string{
+			"app":     "curator",
+			"curator": name,
+		})).String(),
+	}
 }
 
 func (c *Operator) destroyCurator(key string) error {

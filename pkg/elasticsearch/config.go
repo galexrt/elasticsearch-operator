@@ -28,39 +28,6 @@ func generateConfig(p *v1alpha1.Elasticsearch) ([]byte, error) {
 	if p.Spec.Config == "" {
 		// TODO(galexrt) generate "good" default config from the info given
 		// like number of masters is replicas-1, etc.
-		p.Spec.Config = `cluster:
-  name: ${CLUSTER_NAME}
-
-node:
-  master: ${NODE_MASTER}
-  data: ${NODE_DATA}
-  name: ${NODE_NAME}
-  ingest: ${NODE_INGEST}
-  max_local_storage_nodes: ${MAX_LOCAL_STORAGE_NODES}
-
-network.host: ${NETWORK_HOST}
-
-path:
-  data: /data/data
-  logs: /data/log
-
-bootstrap:
-  memory_lock: true
-
-http:
-  enabled: ${HTTP_ENABLE}
-  compression: true
-  cors:
-    enabled: ${HTTP_CORS_ENABLE}
-    allow-origin: ${HTTP_CORS_ALLOW_ORIGIN}
-
-discovery:
-  zen:
-    ping.unicast.hosts: ${DISCOVERY_SERVICE}
-    minimum_master_nodes: ${NUMBER_OF_MASTERS}
-
-# x-pack related settings
-action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*,filebeat-*,metricbeat-*,packetbeat-*,winlogbeat-*,heartbeat-*`
 	}
 	return []byte(p.Spec.Config), nil
 }
