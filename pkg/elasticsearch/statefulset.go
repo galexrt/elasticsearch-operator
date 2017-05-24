@@ -220,7 +220,6 @@ func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *config.Config) (*v1beta1.S
 		{
 			Name:      volumeName(p.Name),
 			MountPath: "/data",
-			SubPath:   subPathForStorage(p.Spec.Storage),
 		},
 	}
 
@@ -290,11 +289,4 @@ func volumeName(name string) string {
 
 func prefixedName(name string) string {
 	return fmt.Sprintf("elasticsearch-%s", name)
-}
-
-func subPathForStorage(s *v1alpha1.StorageSpec) string {
-	if s == nil {
-		return ""
-	}
-	return "elasticsearch-data"
 }

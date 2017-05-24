@@ -50,7 +50,7 @@ const (
 	resyncPeriod = 5 * time.Minute
 )
 
-// Operator manages lify cycle of Elasticsearch deployments and
+// Operator manages lify cycle of Elasticsearch cluster deployments and
 // monitoring configurations.
 type Operator struct {
 	kclient *kubernetes.Clientset
