@@ -26,6 +26,7 @@ import (
 	"github.com/galexrt/elasticsearch-operator/pkg/config"
 	"github.com/galexrt/elasticsearch-operator/pkg/curator"
 	"github.com/galexrt/elasticsearch-operator/pkg/elasticsearch"
+	"github.com/galexrt/elasticsearch-operator/pkg/elasticsearchcluster"
 	"github.com/galexrt/elasticsearch-operator/pkg/k8sutil"
 )
 
@@ -80,7 +81,7 @@ type objectReference struct {
 	namespace string
 }
 
-func parseElasticsearchStatusURL(path string) objectReference {
+func parseStatusURL(path string) objectReference {
 	matches := elasticsearchRoute.FindAllStringSubmatch(path, -1)
 	ns := ""
 	name := ""
@@ -98,7 +99,7 @@ func parseElasticsearchStatusURL(path string) objectReference {
 }
 
 func (api *API) elasticsearchStatus(w http.ResponseWriter, req *http.Request) {
-	or := parseElasticsearchStatusURL(req.URL.Path)
+	or := parseStatusURL(req.URL.Path)
 
 	p, err := api.mclient.Elasticsearches(or.namespace).Get(or.name)
 	if err != nil {
@@ -125,7 +126,7 @@ func (api *API) elasticsearchStatus(w http.ResponseWriter, req *http.Request) {
 }
 
 func (api *API) curatorStatus(w http.ResponseWriter, req *http.Request) {
-	or := parseElasticsearchStatusURL(req.URL.Path)
+	or := parseStatusURL(req.URL.Path)
 
 	p, err := api.mclient.Curators(or.namespace).Get(or.name)
 	if err != nil {
@@ -137,6 +138,33 @@ func (api *API) curatorStatus(w http.ResponseWriter, req *http.Request) {
 	}
 
 	p.Status, _, err = curator.CuratorStatus(api.kclient, p)
+	if err != nil {
+		api.logger.Log("error", err)
+	}
+
+	b, err := json.Marshal(p)
+	if err != nil {
+		api.logger.Log("error", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(b)
+}
+
+func (api *API) elasticsearchClusterStatus(w http.ResponseWriter, req *http.Request) {
+	or := parseStatusURL(req.URL.Path)
+
+	p, err := api.mclient.ElasticsearchClusters(or.namespace).Get(or.name)
+	if err != nil {
+		if k8sutil.IsResourceNotFoundError(err) {
+			w.WriteHeader(404)
+		}
+		api.logger.Log("error", err)
+		return
+	}
+
+	p.Status, _, err = elasticsearchcluster.ElasticsearchClusterStatus(api.kclient, p)
 	if err != nil {
 		api.logger.Log("error", err)
 	}

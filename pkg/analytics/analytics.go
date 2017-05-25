@@ -77,3 +77,11 @@ func CuratorCreated() {
 func CuratorDeleted() {
 	send(ga.NewEvent(category, "curator_deleted"))
 }
+
+func ElasticsearchClusterCreated() {
+	send(ga.NewEvent(category, "elasticsearchcluster_created"))
+}
+
+func ElasticsearchClusterDeleted() {
+	send(ga.NewEvent(category, "elasticsearchcluster_deleted"))
+}

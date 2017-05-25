@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package elasticsearch
+package elasticsearchcluster
 
 import (
 	"bytes"
@@ -100,9 +100,9 @@ func New(conf config.Config, logger log.Logger) (*Operator, error) {
 		&v1alpha1.Elasticsearch{}, resyncPeriod, cache.Indexers{},
 	)
 	c.elastInf.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.handleAddElasticsearch,
-		DeleteFunc: c.handleDeleteElasticsearch,
-		UpdateFunc: c.handleUpdateElasticsearch,
+		AddFunc:    c.handleAddElasticsearchCluster,
+		DeleteFunc: c.handleDeleteElasticsearchCluster,
+		UpdateFunc: c.handleUpdateElasticsearchCluster,
 	})
 
 	c.secrInf = cache.NewSharedIndexInformer(
@@ -177,29 +177,29 @@ func (c *Operator) keyFunc(obj interface{}) (string, bool) {
 	return k, true
 }
 
-func (c *Operator) handleAddElasticsearch(obj interface{}) {
+func (c *Operator) handleAddElasticsearchCluster(obj interface{}) {
 	key, ok := c.keyFunc(obj)
 	if !ok {
 		return
 	}
 
-	analytics.ElasticsearchCreated()
+	analytics.ElasticsearchClusterCreated()
 	c.logger.Log("msg", "Elasticsearch added", "key", key)
 	c.enqueue(key)
 }
 
-func (c *Operator) handleDeleteElasticsearch(obj interface{}) {
+func (c *Operator) handleDeleteElasticsearchCluster(obj interface{}) {
 	key, ok := c.keyFunc(obj)
 	if !ok {
 		return
 	}
 
-	analytics.ElasticsearchDeleted()
+	analytics.ElasticsearchClusterDeleted()
 	c.logger.Log("msg", "Elasticsearch deleted", "key", key)
 	c.enqueue(key)
 }
 
-func (c *Operator) handleUpdateElasticsearch(old, cur interface{}) {
+func (c *Operator) handleUpdateElasticsearchCluster(old, cur interface{}) {
 	key, ok := c.keyFunc(cur)
 	if !ok {
 		return

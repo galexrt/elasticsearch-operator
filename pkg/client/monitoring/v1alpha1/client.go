@@ -47,6 +47,10 @@ func (c *MonitoringV1alpha1Client) Curators(namespace string) CuratorInterface {
 	return newCurators(c.restClient, c.dynamicClient, namespace)
 }
 
+func (c *MonitoringV1alpha1Client) ElasticsearchClusters(namespace string) ElasticsearchClusterInterface {
+	return newElasticsearchClusters(c.restClient, c.dynamicClient, namespace)
+}
+
 func (c *MonitoringV1alpha1Client) RESTClient() rest.Interface {
 	return c.restClient
 }
