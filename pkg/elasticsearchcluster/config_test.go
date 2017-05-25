@@ -32,12 +32,12 @@ func TestConfigGeneration(t *testing.T) {
 func generateTestConfig() ([]byte, error) {
 	replicas := int32(1)
 	return generateConfig(
-		&v1alpha1.Elasticsearch{
+		&v1alpha1.ElasticsearchCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "default",
 			},
-			Spec: v1alpha1.ElasticsearchSpec{
+			Spec: v1alpha1.ElasticsearchClusterSpec{
 				Replicas: &replicas,
 				Resources: v1.ResourceRequirements{
 					Requests: v1.ResourceList{

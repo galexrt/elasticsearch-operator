@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	governingServiceName = "elasticsearch-operated"
+	governingServiceName = "elasticsearchcluster-operated"
 	defaultBaseImage     = "quay.io/galexrt/elasticsearch-kubernetes"
 	defaultVersion       = "5.4.0"
 )
@@ -45,7 +45,7 @@ var (
 	probeTimeoutSeconds int32 = 3
 )
 
-func makeStatefulSet(p v1alpha1.Elasticsearch, old *v1beta1.StatefulSet, config *config.Config) (*v1beta1.StatefulSet, error) {
+func makeStatefulSet(p v1alpha1.ElasticsearchCluster, old *v1beta1.StatefulSet, config *config.Config) (*v1beta1.StatefulSet, error) {
 	// TODO(fabxc): is this the right point to inject defaults?
 	// Ideally we would do it before storing but that's currently not possible.
 	// Potentially an update handler on first insertion.
@@ -171,7 +171,7 @@ func makeConfigSecret(name string) (*v1.Secret, error) {
 	}, nil
 }
 
-func makeStatefulSetService(p *v1alpha1.Elasticsearch) *v1.Service {
+func makeStatefulSetService(p *v1alpha1.ElasticsearchCluster, selector map[string]string) *v1.Service {
 	return &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: governingServiceName,
@@ -183,19 +183,17 @@ func makeStatefulSetService(p *v1alpha1.Elasticsearch) *v1.Service {
 			ClusterIP: "None",
 			Ports: []v1.ServicePort{
 				{
-					Name:       "web",
+					Name:       "http",
 					Port:       9200,
-					TargetPort: intstr.FromString("web"),
+					TargetPort: intstr.FromString("http"),
 				},
 			},
-			Selector: map[string]string{
-				"app": "elasticsearch",
-			},
+			Selector: selector,
 		},
 	}
 }
 
-func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *config.Config) (*v1beta1.StatefulSetSpec, error) {
+func makeStatefulSetSpec(p v1alpha1.ElasticsearchCluster, c *config.Config) (*v1beta1.StatefulSetSpec, error) {
 	// Elasticsearch may take quite long to shut down to checkpoint existing data.
 	// Allow up to 10 minutes for clean termination.
 	terminationGracePeriod := int64(600)

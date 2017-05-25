@@ -24,7 +24,7 @@ var (
 	invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 )
 
-func generateConfig(p *v1alpha1.Elasticsearch) ([]byte, error) {
+func generateConfig(p *v1alpha1.ElasticsearchCluster) ([]byte, error) {
 	if p.Spec.Config == "" {
 		// TODO(galexrt) generate "good" default config from the info given
 		// like number of masters is replicas-1, etc.

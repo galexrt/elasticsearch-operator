@@ -11,19 +11,14 @@ services and deployment and management of Elasticsearch instances.
 
 Once installed, the Elasticsearch Operator provides the following features:
 
-* **Create/Destroy**: Easily launch a Elasticsearch instance for your Kubernetes namespace,
+* **Create/Destroy**: Easily launch a Elasticsearch cluster for your Kubernetes namespace,
   a specific application or team easily using the Operator.
 
 * **Simple Configuration**: Configure the fundamentals of Elasticsearch like versions, persistence,
-  retention policies, and replicas from a native Kubernetes resource.
+  and replicas from a native Kubernetes resource.
 
-* **Target Services via Labels**: Automatically generate monitoring target configurations based
-  on familiar Kubernetes label queries; no need to learn a Elasticsearch specific configuration language.
-
-For an introduction to the Elasticsearch Operator, see the initial [blog
-post](https://coreos.com/blog/the-prometheus-operator.html).
-
-**Documentation is hosted on [coreos.com](https://coreos.com/operators/prometheus/docs/latest/)**
+<!-- For an introduction to the Elasticsearch Operator, see the initial [blog
+post](https://coreos.com/blog/the-prometheus-operator.html). TODO create own blog post-->
 
 The current project roadmap [can be found here](./ROADMAP.md).
 
@@ -40,8 +35,11 @@ The Operator acts on the following [third party resources (TPRs)](http://kuberne
 * **`Elasticsearch`**, which defines a desired Elasticsearch deployment.
   The Operator ensures at all times that a deployment matching the resource definition is running.
 
-To learn more about the TPRs introduced by the Elasticsearch Operator have a look
-at the [design doc](Documentation/design.md).
+* **`ElasticsearchCluster`**, which defines a desired Elasticsearch cluster.
+  The Operator ensures at all times that the specific resource definitions are running.
+
+* **`Curator`**, which defines a desired curator cronjob.
+  The Operator ensures at all times that a cronjob matching the config and resource definition is running.
 
 ## Installation
 
@@ -63,11 +61,13 @@ hack/run-external.sh <kubectl cluster name>
 ## Removal
 
 To remove the operator and Elasticsearch, first delete any third party resources you created in each namespace. The
-operator will automatically shut down and remove Elasticsearch and Alertmanager pods, and associated configmaps.
+operator will automatically shut down and remove Elasticsearch and ElasticsearchCluster pods and Curator cronjobs, and associated configmaps.
 
 ```
 for n in $(kubectl get namespaces -o jsonpath={..metadata.name}); do
   kubectl delete --all --namespace=$n elasticsearch
+  kubectl delete --all --namespace=$n curator
+  kubectl delete --all --namespace=$n elasticsearchcluster
 done
 ```
 
@@ -86,7 +86,9 @@ for n in $(kubectl get namespaces -o jsonpath={..metadata.name}); do
 done
 
 kubectl delete --ignore-not-found thirdpartyresource \
-  elasticsearch.elasticsearch.zerbytes.net
+  curator.elasticsearch.zerbytes.net \
+  elasticsearch.elasticsearch.zerbytes.net \
+  elasticsearchcluster.elasticsearch.zerbytes.net
 ```
 
 **The Elasticsearch Operator collects anonymous usage statistics to help us learning how the software is being used and how we can improve it. To disable collection, run the Operator with the flag `-analytics=false`**

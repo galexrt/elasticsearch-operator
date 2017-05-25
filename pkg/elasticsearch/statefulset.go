@@ -183,13 +183,14 @@ func makeStatefulSetService(p *v1alpha1.Elasticsearch) *v1.Service {
 			ClusterIP: "None",
 			Ports: []v1.ServicePort{
 				{
-					Name:       "web",
+					Name:       "http",
 					Port:       9200,
-					TargetPort: intstr.FromString("web"),
+					TargetPort: intstr.FromString("http"),
 				},
 			},
 			Selector: map[string]string{
-				"app": "elasticsearch",
+				"app":  "elasticsearch",
+				"role": "http",
 			},
 		},
 	}
@@ -226,7 +227,7 @@ func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *config.Config) (*v1beta1.S
 	probeHandler := v1.Handler{
 		HTTPGet: &v1.HTTPGetAction{
 			Path: path.Clean("/_cluster/health"),
-			Port: intstr.FromString("web"),
+			Port: intstr.FromString("http"),
 		},
 	}
 	return &v1beta1.StatefulSetSpec{
@@ -246,7 +247,7 @@ func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *config.Config) (*v1beta1.S
 						Image: fmt.Sprintf("%s:%s", p.Spec.BaseImage, p.Spec.Version),
 						Ports: []v1.ContainerPort{
 							{
-								Name:          "web",
+								Name:          "http",
 								ContainerPort: 9200,
 								Protocol:      v1.ProtocolTCP,
 							},

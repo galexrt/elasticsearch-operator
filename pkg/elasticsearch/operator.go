@@ -619,7 +619,6 @@ func (c *Operator) createConfig(p *v1alpha1.Elasticsearch) error {
 		return errors.Wrap(err, "generating config failed")
 	}
 
-	// TODO(galexrt)
 	s, err := makeConfigSecret(p.Name)
 	if err != nil {
 		return errors.Wrap(err, "generating base secret failed")

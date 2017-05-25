@@ -265,7 +265,7 @@ func (c *Operator) enqueue(obj interface{}) {
 // enqueueForNamespace enqueues all Elasticsearch object keys that belong to the given namespace.
 func (c *Operator) enqueueForNamespace(ns string) {
 	cache.ListAll(c.elastInf.GetStore(), labels.Everything(), func(obj interface{}) {
-		p := obj.(*v1alpha1.Elasticsearch)
+		p := obj.(*v1alpha1.ElasticsearchCluster)
 		if p.Namespace == ns {
 			c.enqueue(p)
 		}
@@ -298,13 +298,13 @@ func (c *Operator) processNextWorkItem() bool {
 	return true
 }
 
-func (c *Operator) elasticsearchForStatefulSet(sset interface{}) *v1alpha1.Elasticsearch {
+func (c *Operator) elasticsearchClusterForStatefulSet(sset interface{}) *v1alpha1.ElasticsearchCluster {
 	key, ok := c.keyFunc(sset)
 	if !ok {
 		return nil
 	}
 
-	promKey := statefulSetKeyToElasticsearchKey(key)
+	promKey := statefulSetKeyToElasticsearchClusterKey(key)
 	p, exists, err := c.elastInf.GetStore().GetByKey(promKey)
 	if err != nil {
 		c.logger.Log("msg", "Elasticsearch lookup failed", "err", err)
@@ -313,35 +313,35 @@ func (c *Operator) elasticsearchForStatefulSet(sset interface{}) *v1alpha1.Elast
 	if !exists {
 		return nil
 	}
-	return p.(*v1alpha1.Elasticsearch)
+	return p.(*v1alpha1.ElasticsearchCluster)
 }
 
 func elasticsearchNameFromStatefulSetName(name string) string {
 	return strings.TrimPrefix(name, "elasticsearch-")
 }
 
-func statefulSetNameFromElasticsearchName(name string) string {
+func statefulSetNameFromElasticsearchClusterName(name string) string {
 	return "elasticsearch-" + name
 }
 
-func statefulSetKeyToElasticsearchKey(key string) string {
+func statefulSetKeyToElasticsearchClusterKey(key string) string {
 	keyParts := strings.Split(key, "/")
 	return keyParts[0] + "/" + strings.TrimPrefix(keyParts[1], "elasticsearch-")
 }
 
-func elasticsearchKeyToStatefulSetKey(key string) string {
+func elasticsearchClusterKeyToStatefulSetKey(key string) string {
 	keyParts := strings.Split(key, "/")
 	return keyParts[0] + "/elasticsearch-" + keyParts[1]
 }
 
 func (c *Operator) handleDeleteStatefulSet(obj interface{}) {
-	if ps := c.elasticsearchForStatefulSet(obj); ps != nil {
+	if ps := c.elasticsearchClusterForStatefulSet(obj); ps != nil {
 		c.enqueue(ps)
 	}
 }
 
 func (c *Operator) handleAddStatefulSet(obj interface{}) {
-	if ps := c.elasticsearchForStatefulSet(obj); ps != nil {
+	if ps := c.elasticsearchClusterForStatefulSet(obj); ps != nil {
 		c.enqueue(ps)
 	}
 }
@@ -358,7 +358,7 @@ func (c *Operator) handleUpdateStatefulSet(oldo, curo interface{}) {
 		return
 	}
 
-	if ps := c.elasticsearchForStatefulSet(cur); ps != nil {
+	if ps := c.elasticsearchClusterForStatefulSet(cur); ps != nil {
 		c.enqueue(ps)
 	}
 }
@@ -380,12 +380,20 @@ func (c *Operator) sync(key string) error {
 		return c.destroyElasticsearch(key)
 	}
 
-	p := obj.(*v1alpha1.Elasticsearch)
+	p := obj.(*v1alpha1.ElasticsearchCluster)
 	if p.Spec.Paused {
 		return nil
 	}
 
-	c.logger.Log("msg", "sync elasticsearch", "key", key)
+	c.logger.Log("msg", "sync elasticsearchcluster", "key", key)
+
+	// 1. Create Configs
+	// 2. Create Secrets from Configs
+	// 3. Create master discovery (9300 transport), ingest/client (9200 http) and data (9300 transport) service
+	// 4. "Generate" master, data, ingest statefulsets
+	// 5. Create master statefulset
+	// 6. Create data statefulset
+	// 7. Create ingest statefulset
 
 	if err := c.createConfig(p); err != nil {
 		return errors.Wrap(err, "creating config failed")
@@ -402,13 +410,19 @@ func (c *Operator) sync(key string) error {
 
 	// Create governing service if it doesn't exist.
 	svcClient := c.kclient.Core().Services(p.Namespace)
-	if err := k8sutil.CreateOrUpdateService(svcClient, makeStatefulSetService(p)); err != nil {
+	if err := k8sutil.CreateOrUpdateService(svcClient,
+		makeStatefulSetService(
+			p,
+			map[string]string{
+				"app":  "elasticsearch",
+				"role": "http",
+			})); err != nil {
 		return errors.Wrap(err, "synchronizing governing service failed")
 	}
 
 	ssetClient := c.kclient.Apps().StatefulSets(p.Namespace)
 	// Ensure we have a StatefulSet running Elasticsearch deployed.
-	obj, exists, err = c.ssetInf.GetIndexer().GetByKey(elasticsearchKeyToStatefulSetKey(key))
+	obj, exists, err = c.ssetInf.GetIndexer().GetByKey(elasticsearchClusterKeyToStatefulSetKey(key))
 	if err != nil {
 		return errors.Wrap(err, "retrieving statefulset failed")
 	}
@@ -442,8 +456,8 @@ func (c *Operator) sync(key string) error {
 func ListOptions(name string) metav1.ListOptions {
 	return metav1.ListOptions{
 		LabelSelector: fields.SelectorFromSet(fields.Set(map[string]string{
-			"app":           "elasticsearch",
-			"elasticsearch": name,
+			"app": "elasticsearchcluster",
+			"elasticsearchcluster": name,
 		})).String(),
 	}
 }
@@ -453,10 +467,10 @@ func ListOptions(name string) metav1.ListOptions {
 // create new pods.
 //
 // TODO(fabxc): remove this once the StatefulSet controller learns how to do rolling updates.
-func (c *Operator) syncVersion(key string, p *v1alpha1.Elasticsearch) error {
-	status, oldPods, err := ElasticsearchStatus(c.kclient, p)
+func (c *Operator) syncVersion(key string, p *v1alpha1.ElasticsearchCluster) error {
+	status, oldPods, err := ElasticsearchClusterStatus(c.kclient, p)
 	if err != nil {
-		return errors.Wrap(err, "retrieving Elasticsearch status failed")
+		return errors.Wrap(err, "retrieving ElasticsearchCluster status failed")
 	}
 
 	// If the StatefulSet is still busy scaling, don't interfere by killing pods.
@@ -489,17 +503,17 @@ func (c *Operator) syncVersion(key string, p *v1alpha1.Elasticsearch) error {
 	return nil
 }
 
-// ElasticsearchStatus evaluates the current status of a Elasticsearch deployment with respect
+// ElasticsearchClusterStatus evaluates the current status of a Elasticsearch deployment with respect
 // to its specified resource object. It return the status and a list of pods that
 // are not updated.
-func ElasticsearchStatus(kclient kubernetes.Interface, p *v1alpha1.Elasticsearch) (*v1alpha1.ElasticsearchStatus, []v1.Pod, error) {
-	res := &v1alpha1.ElasticsearchStatus{Paused: p.Spec.Paused}
+func ElasticsearchClusterStatus(kclient kubernetes.Interface, p *v1alpha1.ElasticsearchCluster) (*v1alpha1.ElasticsearchClusterStatus, []v1.Pod, error) {
+	res := &v1alpha1.ElasticsearchClusterStatus{Paused: p.Spec.Paused}
 
 	pods, err := kclient.Core().Pods(p.Namespace).List(ListOptions(p.Name))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "retrieving pods of failed")
 	}
-	sset, err := kclient.Apps().StatefulSets(p.Namespace).Get(statefulSetNameFromElasticsearchName(p.Name), metav1.GetOptions{})
+	sset, err := kclient.Apps().StatefulSets(p.Namespace).Get(statefulSetNameFromElasticsearchClusterName(p.Name), metav1.GetOptions{})
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "retrieving stateful set failed")
 	}
@@ -548,7 +562,8 @@ func needsUpdate(pod *v1.Pod, tmpl v1.PodTemplateSpec) bool {
 }
 
 func (c *Operator) destroyElasticsearch(key string) error {
-	ssetKey := elasticsearchKeyToStatefulSetKey(key)
+	// TODO Remove everything
+	ssetKey := elasticsearchClusterKeyToStatefulSetKey(key)
 	obj, exists, err := c.ssetInf.GetStore().GetByKey(ssetKey)
 	if err != nil {
 		return errors.Wrap(err, "retrieving statefulset from cache failed")
@@ -609,7 +624,7 @@ func (c *Operator) destroyElasticsearch(key string) error {
 	return nil
 }
 
-func (c *Operator) createConfig(p *v1alpha1.Elasticsearch) error {
+func (c *Operator) createConfig(p *v1alpha1.ElasticsearchCluster) error {
 
 	sClient := c.kclient.CoreV1().Secrets(p.Namespace)
 
@@ -619,7 +634,6 @@ func (c *Operator) createConfig(p *v1alpha1.Elasticsearch) error {
 		return errors.Wrap(err, "generating config failed")
 	}
 
-	// TODO(galexrt)
 	s, err := makeConfigSecret(p.Name)
 	if err != nil {
 		return errors.Wrap(err, "generating base secret failed")

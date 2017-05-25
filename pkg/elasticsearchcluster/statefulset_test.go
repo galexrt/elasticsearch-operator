@@ -39,7 +39,7 @@ func TestStatefulSetLabelingAndAnnotations(t *testing.T) {
 		"testannotation": "testannotationvalue",
 	}
 
-	sset, err := makeStatefulSet(v1alpha1.Elasticsearch{
+	sset, err := makeStatefulSet(v1alpha1.ElasticsearchCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels,
 			Annotations: annotations,
@@ -97,7 +97,7 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 		},
 	}
 
-	sset, err := makeStatefulSet(v1alpha1.Elasticsearch{}, nil, defaultTestConfig)
+	sset, err := makeStatefulSet(v1alpha1.ElasticsearchCluster{}, nil, defaultTestConfig)
 
 	require.NoError(t, err)
 
@@ -150,7 +150,7 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 		},
 	}
 
-	sset, err := makeStatefulSet(v1alpha1.Elasticsearch{}, old, defaultTestConfig)
+	sset, err := makeStatefulSet(v1alpha1.ElasticsearchCluster{}, old, defaultTestConfig)
 
 	require.NoError(t, err)
 
