@@ -21,7 +21,7 @@ CuratorList is a list of Curators.
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | metadata | Standard list metadata More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata | [metav1.ListMeta](https://kubernetes.io/docs/api-reference/v1.6/#listmeta-v1-meta) | false |
-| items | List of Elasticsearches | []*[Curator](#curator) | true |
+| items | List of Elastichearchs | []*[Curator](#curator) | true |
 
 ## CuratorSpec
 
@@ -61,12 +61,28 @@ Elasticsearch defines a Elasticsearch deployment.
 
 ## ElasticsearchList
 
-ElasticsearchList is a list of Elasticsearches.
+ElasticsearchList is a list of Elastichearchs.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | metadata | Standard list metadata More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata | [metav1.ListMeta](https://kubernetes.io/docs/api-reference/v1.6/#listmeta-v1-meta) | false |
-| items | List of Elasticsearches | []*[Elasticsearch](#elasticsearch) | true |
+| items | List of Elastichearchs | []*[Elasticsearch](#elasticsearch) | true |
+
+## ElasticsearchPartSpec
+
+ElasticsearchPartSpec TODO
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| version | Version of Elasticsearch to be deployed. | string | false |
+| baseImage | Base image to use for a Elasticsearch deployment. | string | false |
+| replicas | Number of instances to deploy for a Elasticsearch cluster. | *int32 | false |
+| storage | Storage spec to specify how storage shall be used. | *[StorageSpec](#storagespec) | false |
+| resources | Define resources requests and limits for single Pods. | [v1.ResourceRequirements](https://kubernetes.io/docs/api-reference/v1.6/#resourcerequirements-v1-core) | false |
+| nodeSelector | Define which Nodes the Pods are scheduled on. | map[string]string | false |
+| javaOpts | Set the java options | string | false |
+| additionalConfig | Additional config in form of a string to add to the master config file | string | false |
+| status | Most recent observed status of the Elasticsearch cluster. Read-only. Not included when requesting from the apiserver, only from the Elasticsearch Operator API itself. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status | *[ElasticsearchStatus](#elasticsearchstatus) | false |
 
 ## ElasticsearchSpec
 
@@ -75,15 +91,15 @@ ElasticsearchSpec Specification of the desired behavior of the Elasticsearch clu
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | version | Version of Elasticsearch to be deployed. | string | false |
+| javaMemoryControl |  | bool | false |
+| additionalConfig |  | string | false |
 | paused | When a Elasticsearch deployment is paused, no actions except for deletion will be performed on the underlying objects. | bool | false |
 | baseImage | Base image to use for a Elasticsearch deployment. | string | false |
 | imagePullSecrets | An optional list of references to secrets in the same namespace to use for pulling elasticsearch and curator images from registries see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod | [][v1.LocalObjectReference](https://kubernetes.io/docs/api-reference/v1.6/#localobjectreference-v1-core) | false |
-| replicas | Number of instances to deploy for a Elasticsearch deployment. | *int32 | false |
-| config | The external URL the Elasticsearch instances will be available under. This is necessary to generate correct URLs. This is necessary if Elasticsearch is not served from root of a DNS name. | string | false |
-| storage | Storage spec to specify how storage shall be used. | *[StorageSpec](#storagespec) | false |
-| resources | Define resources requests and limits for single Pods. | [v1.ResourceRequirements](https://kubernetes.io/docs/api-reference/v1.6/#resourcerequirements-v1-core) | false |
-| nodeSelector | Define which Nodes the Pods are scheduled on. | map[string]string | false |
 | serviceAccountName | ServiceAccountName is the name of the ServiceAccount to use to run the Elasticsearch Pods. | string | false |
+| master | Master spec for all statefulset information | *[ElasticsearchPartSpec](#elasticsearchpartspec) | true |
+| data | Data spec for all statefulset information | *[ElasticsearchPartSpec](#elasticsearchpartspec) | true |
+| ingest | Ingest spec for all statefulset information | *[ElasticsearchPartSpec](#elasticsearchpartspec) | true |
 
 ## ElasticsearchStatus
 
@@ -92,10 +108,10 @@ ElasticsearchStatus Most recent observed status of the Elasticsearch cluster. Re
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | paused | Represents whether any actions on the underlaying managed objects are being performed. Only delete actions will be performed. | bool | true |
-| replicas | Total number of non-terminated pods targeted by this Elasticsearch deployment (their labels match the selector). | int32 | true |
-| updatedReplicas | Total number of non-terminated pods targeted by this Elasticsearch deployment that have the desired version spec. | int32 | true |
-| availableReplicas | Total number of available pods (ready for at least minReadySeconds) targeted by this Elasticsearch deployment. | int32 | true |
-| unavailableReplicas | Total number of unavailable pods targeted by this Elasticsearch deployment. | int32 | true |
+| replicas | Total number of non-terminated pods targeted by this Elasticsearch cluster (their labels match the selector). | int32 | true |
+| updatedReplicas | Total number of non-terminated pods targeted by this Elasticsearch cluster that have the desired version spec. | int32 | true |
+| availableReplicas | Total number of available pods (ready for at least minReadySeconds) targeted by this Elasticsearch cluster. | int32 | true |
+| unavailableReplicas | Total number of unavailable pods targeted by this Elasticsearch cluster. | int32 | true |
 
 ## StorageSpec
 

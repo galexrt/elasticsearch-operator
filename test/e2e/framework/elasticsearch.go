@@ -98,7 +98,7 @@ func (f *Framework) MakeElasticsearchService(name, group string, serviceType v1.
 }
 
 func (f *Framework) CreateElasticsearchAndWaitUntilReady(ns string, p *v1alpha1.Elasticsearch) error {
-	_, err := f.MonClient.Elasticsearches(ns).Create(p)
+	_, err := f.MonClient.Elastichearchs(ns).Create(p)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func (f *Framework) CreateElasticsearchAndWaitUntilReady(ns string, p *v1alpha1.
 }
 
 func (f *Framework) UpdateElasticsearchAndWaitUntilReady(ns string, p *v1alpha1.Elasticsearch) error {
-	_, err := f.MonClient.Elasticsearches(ns).Update(p)
+	_, err := f.MonClient.Elastichearchs(ns).Update(p)
 	if err != nil {
 		return err
 	}
@@ -134,12 +134,12 @@ func (f *Framework) WaitForElasticsearchReady(p *v1alpha1.Elasticsearch, timeout
 }
 
 func (f *Framework) DeleteElasticsearchAndWaitUntilGone(ns, name string) error {
-	_, err := f.MonClient.Elasticsearches(ns).Get(name)
+	_, err := f.MonClient.Elastichearchs(ns).Get(name)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("requesting Elasticsearch tpr %v failed", name))
 	}
 
-	if err := f.MonClient.Elasticsearches(ns).Delete(name, nil); err != nil {
+	if err := f.MonClient.Elastichearchs(ns).Delete(name, nil); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("deleting Elasticsearch tpr %v failed", name))
 	}
 

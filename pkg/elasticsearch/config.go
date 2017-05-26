@@ -25,5 +25,6 @@ var (
 )
 
 func generateConfig(p *v1alpha1.Elasticsearch) ([]byte, error) {
-	return []byte(p.Spec.Config), nil
+	// TODO(galexrt)
+	return []byte(""), nil
 }

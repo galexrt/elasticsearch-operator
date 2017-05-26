@@ -39,7 +39,7 @@ func TestStatefulSetLabelingAndAnnotations(t *testing.T) {
 		"testannotation": "testannotationvalue",
 	}
 
-	sset, err := makeStatefulSet(v1alpha1.Elasticsearch{
+	sset, err := makeStatefulSets(v1alpha1.Elasticsearch{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels,
 			Annotations: annotations,
@@ -48,7 +48,7 @@ func TestStatefulSetLabelingAndAnnotations(t *testing.T) {
 
 	require.NoError(t, err)
 
-	if !reflect.DeepEqual(labels, sset.Labels) || !reflect.DeepEqual(annotations, sset.Annotations) {
+	if !reflect.DeepEqual(labels, sset[0].Labels) || !reflect.DeepEqual(annotations, sset[0].Annotations) {
 		t.Fatal("Labels or Annotations are not properly being propagated to the StatefulSet")
 	}
 }
@@ -97,11 +97,11 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 		},
 	}
 
-	sset, err := makeStatefulSet(v1alpha1.Elasticsearch{}, nil, defaultTestConfig)
+	sset, err := makeStatefulSets(v1alpha1.Elasticsearch{}, nil, defaultTestConfig)
 
 	require.NoError(t, err)
 
-	if !reflect.DeepEqual(expected.Spec.Template.Spec.Volumes, sset.Spec.Template.Spec.Volumes) || !reflect.DeepEqual(expected.Spec.Template.Spec.Containers[0].VolumeMounts, sset.Spec.Template.Spec.Containers[0].VolumeMounts) {
+	if !reflect.DeepEqual(expected.Spec.Template.Spec.Volumes, sset[0].Spec.Template.Spec.Volumes) || !reflect.DeepEqual(expected.Spec.Template.Spec.Containers[0].VolumeMounts, sset[0].Spec.Template.Spec.Containers[0].VolumeMounts) {
 		t.Fatal("Volumes mounted in a Pod are not created correctly initially.")
 	}
 }
@@ -150,11 +150,11 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 		},
 	}
 
-	sset, err := makeStatefulSet(v1alpha1.Elasticsearch{}, old, defaultTestConfig)
+	sset, err := makeStatefulSets(v1alpha1.Elasticsearch{}, old, defaultTestConfig)
 
 	require.NoError(t, err)
 
-	if !reflect.DeepEqual(old.Spec.Template.Spec.Volumes, sset.Spec.Template.Spec.Volumes) || !reflect.DeepEqual(old.Spec.Template.Spec.Containers[0].VolumeMounts, sset.Spec.Template.Spec.Containers[0].VolumeMounts) {
+	if !reflect.DeepEqual(old.Spec.Template.Spec.Volumes, sset[0].Spec.Template.Spec.Volumes) || !reflect.DeepEqual(old.Spec.Template.Spec.Containers[0].VolumeMounts, sset[0].Spec.Template.Spec.Containers[0].VolumeMounts) {
 		t.Fatal("Volumes mounted in a Pod should not be reconciled.")
 	}
 }

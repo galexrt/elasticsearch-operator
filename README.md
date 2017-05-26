@@ -32,10 +32,7 @@ Elasticsearch Operator, it is highly recommended to use the latest version.
 
 The Operator acts on the following [third party resources (TPRs)](http://kubernetes.io/docs/user-guide/thirdpartyresources/):
 
-* **`Elasticsearch`**, which defines a desired Elasticsearch deployment.
-  The Operator ensures at all times that a deployment matching the resource definition is running.
-
-* **`ElasticsearchCluster`**, which defines a desired Elasticsearch cluster.
+* **`Elasticsearch`**, which defines a desired Elasticsearch cluster.
   The Operator ensures at all times that the specific resource definitions are running.
 
 * **`Curator`**, which defines a desired curator cronjob.
@@ -67,7 +64,6 @@ operator will automatically shut down and remove Elasticsearch and Elasticsearch
 for n in $(kubectl get namespaces -o jsonpath={..metadata.name}); do
   kubectl delete --all --namespace=$n elasticsearch
   kubectl delete --all --namespace=$n curator
-  kubectl delete --all --namespace=$n elasticsearchcluster
 done
 ```
 
@@ -88,7 +84,6 @@ done
 kubectl delete --ignore-not-found thirdpartyresource \
   curator.elasticsearch.zerbytes.net \
   elasticsearch.elasticsearch.zerbytes.net \
-  elasticsearchcluster.elasticsearch.zerbytes.net
 ```
 
 **The Elasticsearch Operator collects anonymous usage statistics to help us learning how the software is being used and how we can improve it. To disable collection, run the Operator with the flag `-analytics=false`**

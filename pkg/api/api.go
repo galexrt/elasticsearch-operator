@@ -101,7 +101,7 @@ func parseStatusURL(path string) objectReference {
 func (api *API) elasticsearchStatus(w http.ResponseWriter, req *http.Request) {
 	or := parseStatusURL(req.URL.Path)
 
-	p, err := api.mclient.Elasticsearches(or.namespace).Get(or.name)
+	p, err := api.mclient.Elastichearchs(or.namespace).Get(or.name)
 	if err != nil {
 		if k8sutil.IsResourceNotFoundError(err) {
 			w.WriteHeader(404)

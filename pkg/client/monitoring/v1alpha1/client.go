@@ -29,9 +29,8 @@ const (
 
 type MonitoringV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	ElasticsearchesGetter
+	ElastichearchsGetter
 	CuratoresGetter
-	ElasticsearchClustersGetter
 }
 
 type MonitoringV1alpha1Client struct {
@@ -39,16 +38,12 @@ type MonitoringV1alpha1Client struct {
 	dynamicClient *dynamic.Client
 }
 
-func (c *MonitoringV1alpha1Client) Elasticsearches(namespace string) ElasticsearchInterface {
-	return newElasticsearches(c.restClient, c.dynamicClient, namespace)
+func (c *MonitoringV1alpha1Client) Elastichearchs(namespace string) ElasticsearchInterface {
+	return newElastichearchs(c.restClient, c.dynamicClient, namespace)
 }
 
 func (c *MonitoringV1alpha1Client) Curators(namespace string) CuratorInterface {
 	return newCurators(c.restClient, c.dynamicClient, namespace)
-}
-
-func (c *MonitoringV1alpha1Client) ElasticsearchClusters(namespace string) ElasticsearchClusterInterface {
-	return newElasticsearchClusters(c.restClient, c.dynamicClient, namespace)
 }
 
 func (c *MonitoringV1alpha1Client) RESTClient() rest.Interface {

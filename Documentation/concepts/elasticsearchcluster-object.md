@@ -7,9 +7,11 @@ metadata:
 spec:
   version: "5.4.0"
   # automatically calculate java memory opts
-  auto_java_memory: true
-  java_opts: ""
-  additional_config: |
+  javaMemoryControl: true
+  paused: false
+  baseImage: "quay.io/.."
+  imagePullSecrets: "example"
+  additionalConfig: |
     action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*,filebeat-*,metricbeat-*,packetbeat-*,winlogbeat-*,heartbeat-*
   master:
     replicas: 2
@@ -19,19 +21,26 @@ spec:
         memory: "16Gi"
       requests:
         memory: "14Gi"
-    java_opts: ""
-    additional_config: |
+    javaOpts: ""
+    additionalConfig: |
       # test
+    storage:
+      class: rbd
+      resources:
+        requests:
+          storage: 10Gi
   data:
     replicas: 4
+    nodeSelector:
+      "k8s.io/hostname": "example"
     resources:
       limits:
         cpu: "2.5"
         memory: "16Gi"
       requests:
         memory: "14Gi"
-    java_opts: ""
-    additional_config: |
+    javaOpts: ""
+    additionalConfig: |
       # test
     storage:
       class: rbd
@@ -46,7 +55,7 @@ spec:
         memory: "16Gi"
       requests:
         memory: "14Gi"
-    java_opts: ""
-    additional_config: |
+    javaOpts: ""
+    additionalConfig: |
       # test
 ```

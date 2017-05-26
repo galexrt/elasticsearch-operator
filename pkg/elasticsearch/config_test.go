@@ -38,10 +38,12 @@ func generateTestConfig() ([]byte, error) {
 				Namespace: "default",
 			},
 			Spec: v1alpha1.ElasticsearchSpec{
-				Replicas: &replicas,
-				Resources: v1.ResourceRequirements{
-					Requests: v1.ResourceList{
-						v1.ResourceMemory: resource.MustParse("400Mi"),
+				Master: &v1alpha1.ElasticsearchPartSpec{
+					Replicas: &replicas,
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							v1.ResourceMemory: resource.MustParse("400Mi"),
+						},
 					},
 				},
 			},

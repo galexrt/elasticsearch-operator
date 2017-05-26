@@ -45,84 +45,98 @@ var (
 	probeTimeoutSeconds int32 = 3
 )
 
-func makeStatefulSet(p v1alpha1.Elasticsearch, old *v1beta1.StatefulSet, config *config.Config) (*v1beta1.StatefulSet, error) {
+func makeStatefulSets(el v1alpha1.Elasticsearch, old *v1beta1.StatefulSet, config *config.Config) ([]*v1beta1.StatefulSet, error) {
 	// TODO(fabxc): is this the right point to inject defaults?
 	// Ideally we would do it before storing but that's currently not possible.
 	// Potentially an update handler on first insertion.
 
-	if p.Spec.BaseImage == "" {
-		p.Spec.BaseImage = defaultBaseImage
-	}
-	if p.Spec.Version == "" {
-		p.Spec.Version = defaultVersion
-	}
-	if p.Spec.Replicas != nil && *p.Spec.Replicas < minReplicas {
-		p.Spec.Replicas = &minReplicas
-	}
+	var statefulsets []*v1beta1.StatefulSet
 
-	if p.Spec.Resources.Requests == nil {
-		p.Spec.Resources.Requests = v1.ResourceList{}
-	}
-	if _, ok := p.Spec.Resources.Requests[v1.ResourceMemory]; !ok {
-		p.Spec.Resources.Requests[v1.ResourceMemory] = resource.MustParse("2Gi")
-	}
+	version := el.Spec.Version
 
-	spec, err := makeStatefulSetSpec(p, config)
-	if err != nil {
-		return nil, errors.Wrap(err, "make StatefulSet spec")
-	}
+	for tkey, p := range map[string]*v1alpha1.ElasticsearchPartSpec{
+		"master": el.Spec.Master,
+		"data":   el.Spec.Data,
+		"ingest": el.Spec.Ingest,
+	} {
+		name := el.Name + "-" + tkey
 
-	statefulset := &v1beta1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        prefixedName(p.Name),
-			Labels:      p.ObjectMeta.Labels,
-			Annotations: p.ObjectMeta.Annotations,
-		},
-		Spec: *spec,
-	}
+		if p.BaseImage == "" {
+			p.BaseImage = defaultBaseImage
+		}
+		if p.Version == "" && version == "" {
+			p.Version = defaultVersion
+		}
+		if p.Replicas != nil && *p.Replicas < minReplicas {
+			p.Replicas = &minReplicas
+		}
 
-	if p.Spec.ImagePullSecrets != nil && len(p.Spec.ImagePullSecrets) > 0 {
-		statefulset.Spec.Template.Spec.ImagePullSecrets = p.Spec.ImagePullSecrets
-	}
+		if p.Resources.Requests == nil {
+			p.Resources.Requests = v1.ResourceList{}
+		}
+		if _, ok := p.Resources.Requests[v1.ResourceMemory]; !ok {
+			p.Resources.Requests[v1.ResourceMemory] = resource.MustParse("2Gi")
+		}
 
-	if vc := p.Spec.Storage; vc == nil {
-		statefulset.Spec.Template.Spec.Volumes = append(statefulset.Spec.Template.Spec.Volumes, v1.Volume{
-			Name: volumeName(p.Name),
-			VolumeSource: v1.VolumeSource{
-				EmptyDir: &v1.EmptyDirVolumeSource{},
-			},
-		})
-	} else {
-		pvc := v1.PersistentVolumeClaim{
+		spec, err := makeStatefulSetSpec(name, &el, p, config)
+		if err != nil {
+			return nil, errors.Wrap(err, "make StatefulSet spec")
+		}
+
+		statefulset := &v1beta1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: volumeName(p.Name),
+				Name:        prefixedName(name),
+				Labels:      el.ObjectMeta.Labels,
+				Annotations: el.ObjectMeta.Annotations,
 			},
-			Spec: v1.PersistentVolumeClaimSpec{
-				AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-				Resources:   vc.Resources,
-				Selector:    vc.Selector,
-			},
+			Spec: *spec,
 		}
-		if len(vc.Class) > 0 {
-			pvc.ObjectMeta.Annotations = map[string]string{
-				"volume.beta.kubernetes.io/storage-class": vc.Class,
+
+		// TODO(galexrt) check why k8s.io/client-go hasn't this implemented yet..
+		//if el.Spec.ImagePullSecrets != nil && len(el.Spec.ImagePullSecrets) > 0 {
+		//	statefulset.Template.ImagePullSecrets = el.Spec.ImagePullSecrets
+		//}
+
+		if vc := p.Storage; vc == nil {
+			statefulset.Spec.Template.Spec.Volumes = append(statefulset.Spec.Template.Spec.Volumes, v1.Volume{
+				Name: volumeName(name),
+				VolumeSource: v1.VolumeSource{
+					EmptyDir: &v1.EmptyDirVolumeSource{},
+				},
+			})
+		} else {
+			pvc := v1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: volumeName(name),
+				},
+				Spec: v1.PersistentVolumeClaimSpec{
+					AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+					Resources:   vc.Resources,
+					Selector:    vc.Selector,
+				},
 			}
+			if len(vc.Class) > 0 {
+				pvc.ObjectMeta.Annotations = map[string]string{
+					"volume.beta.kubernetes.io/storage-class": vc.Class,
+				}
+			}
+			statefulset.Spec.VolumeClaimTemplates = append(statefulset.Spec.VolumeClaimTemplates, pvc)
 		}
-		statefulset.Spec.VolumeClaimTemplates = append(statefulset.Spec.VolumeClaimTemplates, pvc)
+
+		if old != nil {
+			statefulset.Annotations = old.Annotations
+
+			// mounted volumes are not reconciled as StatefulSets do not allow
+			// modification of the PodTemplate.
+			// TODO(brancz): remove this once StatefulSets allow modification of the
+			// PodTemplate.
+			statefulset.Spec.Template.Spec.Containers[0].VolumeMounts = old.Spec.Template.Spec.Containers[0].VolumeMounts
+			statefulset.Spec.Template.Spec.Volumes = old.Spec.Template.Spec.Volumes
+		}
+		statefulsets = append(statefulsets, statefulset)
 	}
 
-	if old != nil {
-		statefulset.Annotations = old.Annotations
-
-		// mounted volumes are not reconciled as StatefulSets do not allow
-		// modification of the PodTemplate.
-		// TODO(brancz): remove this once StatefulSets allow modification of the
-		// PodTemplate.
-		statefulset.Spec.Template.Spec.Containers[0].VolumeMounts = old.Spec.Template.Spec.Containers[0].VolumeMounts
-		statefulset.Spec.Template.Spec.Volumes = old.Spec.Template.Spec.Volumes
-	}
-
-	return statefulset, nil
+	return statefulsets, nil
 }
 
 func makeEmptyConfig(name string) (*v1.Secret, error) {
@@ -160,14 +174,17 @@ func (l *ConfigMapReferenceList) Swap(i, j int) {
 }
 
 func makeConfigSecret(name string) (*v1.Secret, error) {
+	data := map[string][]byte{
+		fmt.Sprintf(configFilenameTemplate, "master"): []byte{},
+		fmt.Sprintf(configFilenameTemplate, "data"):   []byte{},
+		fmt.Sprintf(configFilenameTemplate, "ingest"): []byte{},
+	}
 	return &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   configSecretName(name),
 			Labels: managedByOperatorLabels,
 		},
-		Data: map[string][]byte{
-			configFilename: []byte{},
-		},
+		Data: data,
 	}, nil
 }
 
@@ -196,31 +213,44 @@ func makeStatefulSetService(p *v1alpha1.Elasticsearch) *v1.Service {
 	}
 }
 
-func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *config.Config) (*v1beta1.StatefulSetSpec, error) {
+func makeStatefulSetSpec(name string, el *v1alpha1.Elasticsearch, p *v1alpha1.ElasticsearchPartSpec, c *config.Config) (*v1beta1.StatefulSetSpec, error) {
 	// Elasticsearch may take quite long to shut down to checkpoint existing data.
-	// Allow up to 10 minutes for clean termination.
-	terminationGracePeriod := int64(600)
+	// Allow up to 5 minutes for clean termination.
+	terminationGracePeriod := int64(300)
 
 	volumes := []v1.Volume{
 		{
 			Name: "config",
 			VolumeSource: v1.VolumeSource{
 				Secret: &v1.SecretVolumeSource{
-					SecretName: configSecretName(p.Name),
+					SecretName: configSecretName(name),
 				},
 			},
 		},
 	}
 
-	elastVolumeMounts := []v1.VolumeMount{
+	volumeMounts := []v1.VolumeMount{
 		{
 			Name:      "config",
 			ReadOnly:  true,
 			MountPath: "/etc/elasticsearch/config",
 		},
 		{
-			Name:      volumeName(p.Name),
+			Name:      volumeName(name),
 			MountPath: "/data",
+		},
+	}
+
+	ports := []v1.ContainerPort{
+		{
+			Name:          "http",
+			ContainerPort: 9200,
+			Protocol:      v1.ProtocolTCP,
+		},
+		{
+			Name:          "transport",
+			ContainerPort: 9300,
+			Protocol:      v1.ProtocolTCP,
 		},
 	}
 
@@ -232,27 +262,21 @@ func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *config.Config) (*v1beta1.S
 	}
 	return &v1beta1.StatefulSetSpec{
 		ServiceName: governingServiceName,
-		Replicas:    p.Spec.Replicas,
+		Replicas:    p.Replicas,
 		Template: v1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					"app":           "elasticsearch",
-					"elasticsearch": p.Name,
+					"elasticsearch": name,
 				},
 			},
 			Spec: v1.PodSpec{
 				Containers: []v1.Container{
 					{
-						Name:  "elasticsearch",
-						Image: fmt.Sprintf("%s:%s", p.Spec.BaseImage, p.Spec.Version),
-						Ports: []v1.ContainerPort{
-							{
-								Name:          "http",
-								ContainerPort: 9200,
-								Protocol:      v1.ProtocolTCP,
-							},
-						},
-						VolumeMounts: elastVolumeMounts,
+						Name:         "elasticsearch",
+						Image:        fmt.Sprintf("%s:%s", p.BaseImage, el.Spec.Version),
+						Ports:        ports,
+						VolumeMounts: volumeMounts,
 						LivenessProbe: &v1.Probe{
 							Handler: probeHandler,
 							// For larger servers, restoring a checkpoint on startup may take quite a bit of time.
@@ -268,11 +292,11 @@ func makeStatefulSetSpec(p v1alpha1.Elasticsearch, c *config.Config) (*v1beta1.S
 							PeriodSeconds:    5,
 							FailureThreshold: 6,
 						},
-						Resources: p.Spec.Resources,
+						Resources: p.Resources,
 					},
 				},
-				ServiceAccountName:            p.Spec.ServiceAccountName,
-				NodeSelector:                  p.Spec.NodeSelector,
+				ServiceAccountName:            el.Spec.ServiceAccountName,
+				NodeSelector:                  p.NodeSelector,
 				TerminationGracePeriodSeconds: &terminationGracePeriod,
 				Volumes: volumes,
 			},

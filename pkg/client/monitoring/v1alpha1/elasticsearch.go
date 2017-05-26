@@ -30,8 +30,8 @@ const (
 	TPRElasticsearchName = "elasticsearchs"
 )
 
-type ElasticsearchesGetter interface {
-	Elasticsearches(namespace string) ElasticsearchInterface
+type ElastichearchsGetter interface {
+	Elastichearchs(namespace string) ElasticsearchInterface
 }
 
 type ElasticsearchInterface interface {
@@ -43,14 +43,14 @@ type ElasticsearchInterface interface {
 	Watch(opts metav1.ListOptions) (watch.Interface, error)
 }
 
-type elasticseaches struct {
+type elasticseachs struct {
 	restClient rest.Interface
 	client     *dynamic.ResourceClient
 	ns         string
 }
 
-func newElasticsearches(r rest.Interface, c *dynamic.Client, namespace string) *elasticseaches {
-	return &elasticseaches{
+func newElastichearchs(r rest.Interface, c *dynamic.Client, namespace string) *elasticseachs {
+	return &elasticseachs{
 		r,
 		c.Resource(
 			&metav1.APIResource{
@@ -64,7 +64,7 @@ func newElasticsearches(r rest.Interface, c *dynamic.Client, namespace string) *
 	}
 }
 
-func (p *elasticseaches) Create(o *Elasticsearch) (*Elasticsearch, error) {
+func (p *elasticseachs) Create(o *Elasticsearch) (*Elasticsearch, error) {
 	up, err := UnstructuredFromElasticsearch(o)
 	if err != nil {
 		return nil, err
@@ -78,7 +78,7 @@ func (p *elasticseaches) Create(o *Elasticsearch) (*Elasticsearch, error) {
 	return ElasticsearchFromUnstructured(up)
 }
 
-func (p *elasticseaches) Get(name string) (*Elasticsearch, error) {
+func (p *elasticseachs) Get(name string) (*Elasticsearch, error) {
 	obj, err := p.client.Get(name)
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (p *elasticseaches) Get(name string) (*Elasticsearch, error) {
 	return ElasticsearchFromUnstructured(obj)
 }
 
-func (p *elasticseaches) Update(o *Elasticsearch) (*Elasticsearch, error) {
+func (p *elasticseachs) Update(o *Elasticsearch) (*Elasticsearch, error) {
 	up, err := UnstructuredFromElasticsearch(o)
 	if err != nil {
 		return nil, err
@@ -100,11 +100,11 @@ func (p *elasticseaches) Update(o *Elasticsearch) (*Elasticsearch, error) {
 	return ElasticsearchFromUnstructured(up)
 }
 
-func (p *elasticseaches) Delete(name string, options *metav1.DeleteOptions) error {
+func (p *elasticseachs) Delete(name string, options *metav1.DeleteOptions) error {
 	return p.client.Delete(name, options)
 }
 
-func (p *elasticseaches) List(opts metav1.ListOptions) (runtime.Object, error) {
+func (p *elasticseachs) List(opts metav1.ListOptions) (runtime.Object, error) {
 	req := p.restClient.Get().
 		Namespace(p.ns).
 		Resource(TPRElasticsearchName).
@@ -119,7 +119,7 @@ func (p *elasticseaches) List(opts metav1.ListOptions) (runtime.Object, error) {
 	return &prom, json.Unmarshal(b, &prom)
 }
 
-func (p *elasticseaches) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+func (p *elasticseachs) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 	r, err := p.restClient.Get().
 		Prefix("watch").
 		Namespace(p.ns).
