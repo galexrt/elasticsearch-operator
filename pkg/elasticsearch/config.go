@@ -24,7 +24,22 @@ var (
 	invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 )
 
-func generateConfig(p *v1alpha1.Elasticsearch) ([]byte, error) {
-	// TODO(galexrt)
-	return []byte(""), nil
+func generateConfig(p *v1alpha1.Elasticsearch) (map[string][]byte, error) {
+	configs := map[string][]byte{
+		"master": []byte(""),
+		"data":   []byte(""),
+		"ingest": []byte(""),
+	}
+
+	if p.Spec.Master != nil && len(p.Spec.Master.AdditionalConfig) > 0 {
+		configs["master"] = append(configs["master"], "\n"+p.Spec.Master.AdditionalConfig...)
+	}
+	if p.Spec.Data != nil && len(p.Spec.Data.AdditionalConfig) > 0 {
+		configs["data"] = append(configs["data"], "\n"+p.Spec.Data.AdditionalConfig...)
+	}
+	if p.Spec.Ingest != nil && len(p.Spec.Ingest.AdditionalConfig) > 0 {
+		configs["ingest"] = append(configs["ingest"], "\n"+p.Spec.Ingest.AdditionalConfig...)
+	}
+
+	return configs, nil
 }

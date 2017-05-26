@@ -317,7 +317,7 @@ func (c *Operator) elasticsearchForStatefulSet(sset interface{}) *v1alpha1.Elast
 }
 
 func elasticsearchNameFromStatefulSetName(name string) string {
-	return strings.TrimPrefix(name, "elasticsearch-")
+	return strings.Split(strings.TrimPrefix(name, "elasticsearch-"), "-")[0]
 }
 
 func statefulSetNameFromElasticsearchName(name string) string {
@@ -380,64 +380,72 @@ func (c *Operator) sync(key string) error {
 		return c.destroyElasticsearch(key)
 	}
 
-	p := obj.(*v1alpha1.Elasticsearch)
-	if p.Spec.Paused {
+	el := obj.(*v1alpha1.Elasticsearch)
+	if el.Spec.Paused {
 		return nil
 	}
 
 	c.logger.Log("msg", "sync elasticsearch", "key", key)
 
-	if err := c.createConfig(p); err != nil {
+	if err := c.createConfig(el); err != nil {
 		return errors.Wrap(err, "creating config failed")
 	}
 
 	// Create Secret if it doesn't exist.
-	s, err := makeEmptyConfig(p.Name)
+	s, err := makeEmptyConfig(el.ObjectMeta.Name)
 	if err != nil {
 		return errors.Wrap(err, "generating empty config secret failed")
 	}
-	if _, err := c.kclient.Core().Secrets(p.Namespace).Create(s); err != nil && !apierrors.IsAlreadyExists(err) {
+	if _, err := c.kclient.Core().Secrets(el.Namespace).Create(s); err != nil && !apierrors.IsAlreadyExists(err) {
 		return errors.Wrap(err, "creating empty config file failed")
 	}
 
 	// Create governing service if it doesn't exist.
-	svcClient := c.kclient.Core().Services(p.Namespace)
-	if err := k8sutil.CreateOrUpdateService(svcClient, makeStatefulSetService(p)); err != nil {
+	svcClient := c.kclient.Core().Services(el.Namespace)
+	if err := k8sutil.CreateOrUpdateService(svcClient, makeStatefulSetService(el)); err != nil {
 		return errors.Wrap(err, "synchronizing governing service failed")
 	}
 
 	// TODO(galexrt) create the other services (see above)
 
-	ssetClient := c.kclient.Apps().StatefulSets(p.Namespace)
-	// Ensure we have a StatefulSet running Elasticsearch deployed.
-	obj, exists, err = c.ssetInf.GetIndexer().GetByKey(elasticsearchKeyToStatefulSetKey(key))
-	if err != nil {
-		return errors.Wrap(err, "retrieving statefulset failed")
-	}
+	ssetClient := c.kclient.Apps().StatefulSets(el.Namespace)
 
-	if !exists {
-		ssets, err := makeStatefulSets(*p, nil, &c.config)
+	ok := false
+
+	for tkey, p := range map[string]*v1alpha1.ElasticsearchPartSpec{
+		"master": el.Spec.Master,
+		"data":   el.Spec.Data,
+		"ingest": el.Spec.Ingest,
+	} {
+		// Ensure we have a StatefulSet running Elasticsearch master, data and ingest deployed.
+		obj, exists, err = c.ssetInf.GetIndexer().GetByKey(elasticsearchKeyToStatefulSetKey(key + "-" + tkey))
 		if err != nil {
-			return errors.Wrap(err, "creating statefulsets failed")
+			return errors.Wrap(err, "retrieving statefulset failed")
 		}
-		for _, sset := range ssets {
+		if !exists {
+			sset, err := makeStatefulSets(*el, tkey, p, nil, &c.config)
+			if err != nil {
+				return errors.Wrap(err, "creating statefulsets failed")
+			}
 			if _, err := ssetClient.Create(sset); err != nil {
 				return errors.Wrap(err, "creating statefulsets failed")
 			}
+			ok = true
+			continue
 		}
-		return nil
-	}
-	ssets, err := makeStatefulSets(*p, obj.(*v1beta1.StatefulSet), &c.config)
-	if err != nil {
-		return errors.Wrap(err, "updating statefulsets failed")
-	}
-	for _, sset := range ssets {
-		if _, err := ssetClient.Update(sset); err != nil {
+		sset, err := makeStatefulSets(*el, tkey, p, obj.(*v1beta1.StatefulSet), &c.config)
+		if err != nil {
 			return errors.Wrap(err, "updating statefulsets failed")
 		}
+		if _, err := ssetClient.Update(sset); err != nil {
+			return errors.Wrap(err, "updating statefulset failed")
+		}
+	}
+	if ok {
+		return nil
 	}
 
-	err = c.syncVersion(key, p)
+	err = c.syncVersion(key, el)
 	if err != nil {
 		return errors.Wrap(err, "syncing version failed")
 	}
@@ -460,16 +468,17 @@ func ListOptions(name string) metav1.ListOptions {
 //
 // TODO(fabxc): remove this once the StatefulSet controller learns how to do rolling updates.
 func (c *Operator) syncVersion(key string, el *v1alpha1.Elasticsearch) error {
-	status, oldPods, err := ElasticsearchStatus(c.kclient, el)
+	statuses, oldPods, err := ElasticsearchStatus(c.kclient, el)
 	if err != nil {
 		return errors.Wrap(err, "retrieving Elasticsearch status failed")
 	}
 
-	for _, p := range map[string]*v1alpha1.ElasticsearchPartSpec{
+	for tkey, p := range map[string]*v1alpha1.ElasticsearchPartSpec{
 		"master": el.Spec.Master,
 		"data":   el.Spec.Data,
 		"ingest": el.Spec.Ingest,
 	} {
+		status := statuses[tkey]
 		// If the StatefulSet is still busy scaling, don't interfere by killing pods.
 		// We enqueue ourselves again to until the StatefulSet is ready.
 		expectedReplicas := int32(1)
@@ -482,7 +491,7 @@ func (c *Operator) syncVersion(key string, el *v1alpha1.Elasticsearch) error {
 		if status.Replicas == 0 {
 			return nil
 		}
-		if len(oldPods) == 0 {
+		if len(oldPods[tkey]) == 0 {
 			return nil
 		}
 		if status.UnavailableReplicas > 0 {
@@ -490,7 +499,7 @@ func (c *Operator) syncVersion(key string, el *v1alpha1.Elasticsearch) error {
 		}
 
 		// TODO(fabxc): delete oldest pod first.
-		if err := c.kclient.Core().Pods(el.Namespace).Delete(oldPods[0].Name, nil); err != nil {
+		if err := c.kclient.Core().Pods(el.Namespace).Delete(oldPods[tkey][0].Name, nil); err != nil {
 			return err
 		}
 		// If there are further pods that need updating, we enqueue ourselves again.
@@ -504,40 +513,53 @@ func (c *Operator) syncVersion(key string, el *v1alpha1.Elasticsearch) error {
 // ElasticsearchStatus evaluates the current status of a Elasticsearch deployment with respect
 // to its specified resource object. It return the status and a list of pods that
 // are not updated.
-func ElasticsearchStatus(kclient kubernetes.Interface, p *v1alpha1.Elasticsearch) (*v1alpha1.ElasticsearchStatus, []v1.Pod, error) {
-	res := &v1alpha1.ElasticsearchStatus{Paused: p.Spec.Paused}
+func ElasticsearchStatus(kclient kubernetes.Interface, el *v1alpha1.Elasticsearch) (map[string]*v1alpha1.ElasticsearchStatus, map[string][]v1.Pod, error) {
+	ress := map[string]*v1alpha1.ElasticsearchStatus{}
 
-	pods, err := kclient.Core().Pods(p.Namespace).List(ListOptions(p.Name))
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "retrieving pods of failed")
-	}
-	sset, err := kclient.Apps().StatefulSets(p.Namespace).Get(statefulSetNameFromElasticsearchName(p.Name), metav1.GetOptions{})
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "retrieving stateful set failed")
-	}
+	var oldPods map[string][]v1.Pod
 
-	res.Replicas = int32(len(pods.Items))
+	for tkey, _ := range map[string]*v1alpha1.ElasticsearchPartSpec{
+		"master": el.Spec.Master,
+		"data":   el.Spec.Data,
+		"ingest": el.Spec.Ingest,
+	} {
+		res := &v1alpha1.ElasticsearchStatus{
+			Paused:   el.Spec.Paused,
+			Replicas: int32(0),
+		}
+		name := el.ObjectMeta.Name + "-" + tkey
 
-	var oldPods []v1.Pod
-	for _, pod := range pods.Items {
-		ready, err := k8sutil.PodRunningAndReady(pod)
+		pods, err := kclient.Core().Pods(el.Namespace).List(ListOptions(name))
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "cannot determine pod ready state")
+			return nil, nil, errors.Wrap(err, "retrieving pods of failed")
 		}
-		if ready {
-			res.AvailableReplicas++
-			// TODO(fabxc): detect other fields of the pod template that are mutable.
-			if needsUpdate(&pod, sset.Spec.Template) {
-				oldPods = append(oldPods, pod)
-			} else {
-				res.UpdatedReplicas++
-			}
-			continue
+		sset, err := kclient.Apps().StatefulSets(el.Namespace).Get(statefulSetNameFromElasticsearchName(name), metav1.GetOptions{})
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "retrieving stateful set failed")
 		}
-		res.UnavailableReplicas++
-	}
 
-	return res, oldPods, nil
+		res.Replicas += int32(len(pods.Items))
+
+		for _, pod := range pods.Items {
+			ready, err := k8sutil.PodRunningAndReady(pod)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "cannot determine pod ready state")
+			}
+			if ready {
+				res.AvailableReplicas++
+				// TODO(fabxc): detect other fields of the pod template that are mutable.
+				if needsUpdate(&pod, sset.Spec.Template) {
+					oldPods[tkey] = append(oldPods[tkey], pod)
+				} else {
+					res.UpdatedReplicas++
+				}
+				continue
+			}
+			res.UnavailableReplicas++
+		}
+		ress[tkey] = res
+	}
+	return ress, oldPods, nil
 }
 
 // needsUpdate checks whether the given pod conforms with the pod template spec
@@ -560,49 +582,65 @@ func needsUpdate(pod *v1.Pod, tmpl v1.PodTemplateSpec) bool {
 }
 
 func (c *Operator) destroyElasticsearch(key string) error {
-	ssetKey := elasticsearchKeyToStatefulSetKey(key)
-	obj, exists, err := c.ssetInf.GetStore().GetByKey(ssetKey)
-	if err != nil {
-		return errors.Wrap(err, "retrieving statefulset from cache failed")
-	}
-	if !exists {
-		return nil
-	}
-	sset := obj.(*v1beta1.StatefulSet)
-	*sset.Spec.Replicas = 0
+	var sset *v1beta1.StatefulSet
 
-	// Update the replica count to 0 and wait for all pods to be deleted.
-	ssetClient := c.kclient.Apps().StatefulSets(sset.Namespace)
-
-	if _, err := ssetClient.Update(sset); err != nil {
-		return errors.Wrap(err, "updating statefulset for scale-down failed")
-	}
-
-	podClient := c.kclient.Core().Pods(sset.Namespace)
-
-	// TODO(fabxc): temprorary solution until StatefulSet status provides necessary info to know
-	// whether scale-down completed.
-	for {
-		pods, err := podClient.List(ListOptions(elasticsearchNameFromStatefulSetName(sset.Name)))
+	for _, tkey := range []string{
+		"master",
+		"data",
+		"ingest",
+	} {
+		ssetKey := elasticsearchKeyToStatefulSetKey(key + "-" + tkey)
+		obj, exists, err := c.ssetInf.GetStore().GetByKey(ssetKey)
 		if err != nil {
-			return errors.Wrap(err, "retrieving pods of statefulset failed")
+			return errors.Wrap(err, "retrieving statefulset from cache failed")
 		}
-		if len(pods.Items) == 0 {
-			break
+		if !exists {
+			continue
 		}
-		time.Sleep(50 * time.Millisecond)
+		sset = obj.(*v1beta1.StatefulSet)
+		*sset.Spec.Replicas = 0
+
+		// Update the replica count to 0 and wait for all pods to be deleted.
+		ssetClient := c.kclient.Apps().StatefulSets(sset.Namespace)
+
+		if _, err := ssetClient.Update(sset); err != nil {
+			return errors.Wrap(err, "updating statefulset for scale-down failed")
+		}
+
+		podClient := c.kclient.Core().Pods(sset.Namespace)
+
+		// TODO(fabxc): temprorary solution until StatefulSet status provides necessary info to know
+		// whether scale-down completed.
+		for {
+			pods, err := podClient.List(ListOptions(elasticsearchNameFromStatefulSetName(sset.Name)))
+			if err != nil {
+				return errors.Wrap(err, "retrieving pods of statefulset "+tkey+" failed")
+			}
+
+			if len(pods.Items) == 0 {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+			if err := c.kclient.Core().Pods(sset.Namespace).Delete(pods.Items[0].Name, nil); err != nil {
+				return err
+			}
+		}
+
+		// StatefulSet can be deleted.
+		if err := ssetClient.Delete(sset.Name, nil); err != nil {
+			return errors.Wrap(err, "deleting statefulset failed")
+		}
 	}
 
-	// StatefulSet scaled down, we can delete it.
-	if err := ssetClient.Delete(sset.Name, nil); err != nil {
-		return errors.Wrap(err, "deleting statefulset failed")
-	}
+	nameParts := strings.Split(key, "/")
+	namespace := nameParts[0]
+	name := nameParts[1]
 
 	// Delete the auto-generate configuration.
 	// TODO(fabxc): add an ownerRef at creation so we don't delete Secrets
 	// manually created for Elasticsearch servers with no ServiceMonitor selectors.
-	s := c.kclient.Core().Secrets(sset.Namespace)
-	secret, err := s.Get(sset.Name, metav1.GetOptions{})
+	s := c.kclient.Core().Secrets(namespace)
+	secret, err := s.Get(configSecretName(name), metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return errors.Wrap(err, "retrieving config Secret failed")
 	}
@@ -613,7 +651,7 @@ func (c *Operator) destroyElasticsearch(key string) error {
 
 	value, found := secret.Labels[managedByOperatorLabel]
 	if found && value == managedByOperatorLabelValue {
-		if err := s.Delete(sset.Name, nil); err != nil {
+		if err := s.Delete(configSecretName(name), nil); err != nil {
 			return errors.Wrap(err, "deleting config Secret failed")
 		}
 	}
@@ -626,7 +664,7 @@ func (c *Operator) createConfig(p *v1alpha1.Elasticsearch) error {
 	sClient := c.kclient.CoreV1().Secrets(p.Namespace)
 
 	// Update secret based on the most recent configuration.
-	conf, err := generateConfig(p)
+	confs, err := generateConfig(p)
 	if err != nil {
 		return errors.Wrap(err, "generating config failed")
 	}
@@ -638,7 +676,9 @@ func (c *Operator) createConfig(p *v1alpha1.Elasticsearch) error {
 	s.ObjectMeta.Annotations = map[string]string{
 		"generated": "true",
 	}
-	s.Data[configFilename] = []byte(conf)
+	s.Data[fmt.Sprintf(configFilenameTemplate, "master")] = []byte(confs["master"])
+	s.Data[fmt.Sprintf(configFilenameTemplate, "data")] = []byte(confs["data"])
+	s.Data[fmt.Sprintf(configFilenameTemplate, "ingest")] = []byte(confs["ingest"])
 
 	curSecret, err := sClient.Get(s.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
@@ -647,17 +687,27 @@ func (c *Operator) createConfig(p *v1alpha1.Elasticsearch) error {
 		return err
 	}
 
-	generatedConf := s.Data[configFilename]
-	curConfig, curConfigFound := curSecret.Data[configFilename]
-	if curConfigFound {
-		if bytes.Equal(curConfig, generatedConf) {
-			c.logger.Log("msg", "updating config skipped, no configuration change")
-			return nil
+	ok := -1
+
+	for configFilename, generatedConf := range s.Data {
+		curConfig, curConfigFound := curSecret.Data[configFilename]
+		if curConfigFound {
+			if bytes.Equal(curConfig, generatedConf) {
+				c.logger.Log("msg", "updating config skipped, no configuration change")
+				if ok == -1 {
+					ok = 1
+				}
+			} else {
+				ok = 0
+				c.logger.Log("msg", "current config has changed")
+			}
 		} else {
-			c.logger.Log("msg", "current config has changed")
+			ok = 0
+			c.logger.Log("msg", "no current config found", "currentConfigFound", curConfigFound)
 		}
-	} else {
-		c.logger.Log("msg", "no current config found", "currentConfigFound", curConfigFound)
+	}
+	if ok == 1 {
+		return nil
 	}
 
 	c.logger.Log("msg", "updating configuration")

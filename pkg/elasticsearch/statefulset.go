@@ -45,98 +45,89 @@ var (
 	probeTimeoutSeconds int32 = 3
 )
 
-func makeStatefulSets(el v1alpha1.Elasticsearch, old *v1beta1.StatefulSet, config *config.Config) ([]*v1beta1.StatefulSet, error) {
+func makeStatefulSets(el v1alpha1.Elasticsearch, tkey string, p *v1alpha1.ElasticsearchPartSpec, old *v1beta1.StatefulSet, config *config.Config) (*v1beta1.StatefulSet, error) {
 	// TODO(fabxc): is this the right point to inject defaults?
 	// Ideally we would do it before storing but that's currently not possible.
 	// Potentially an update handler on first insertion.
 
-	var statefulsets []*v1beta1.StatefulSet
-
 	version := el.Spec.Version
+	name := el.ObjectMeta.Name
+	nameWithKey := el.ObjectMeta.Name + "-" + tkey
 
-	for tkey, p := range map[string]*v1alpha1.ElasticsearchPartSpec{
-		"master": el.Spec.Master,
-		"data":   el.Spec.Data,
-		"ingest": el.Spec.Ingest,
-	} {
-		name := el.Name + "-" + tkey
-
-		if p.BaseImage == "" {
-			p.BaseImage = defaultBaseImage
-		}
-		if p.Version == "" && version == "" {
-			p.Version = defaultVersion
-		}
-		if p.Replicas != nil && *p.Replicas < minReplicas {
-			p.Replicas = &minReplicas
-		}
-
-		if p.Resources.Requests == nil {
-			p.Resources.Requests = v1.ResourceList{}
-		}
-		if _, ok := p.Resources.Requests[v1.ResourceMemory]; !ok {
-			p.Resources.Requests[v1.ResourceMemory] = resource.MustParse("2Gi")
-		}
-
-		spec, err := makeStatefulSetSpec(name, &el, p, config)
-		if err != nil {
-			return nil, errors.Wrap(err, "make StatefulSet spec")
-		}
-
-		statefulset := &v1beta1.StatefulSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        prefixedName(name),
-				Labels:      el.ObjectMeta.Labels,
-				Annotations: el.ObjectMeta.Annotations,
-			},
-			Spec: *spec,
-		}
-
-		// TODO(galexrt) check why k8s.io/client-go hasn't this implemented yet..
-		//if el.Spec.ImagePullSecrets != nil && len(el.Spec.ImagePullSecrets) > 0 {
-		//	statefulset.Template.ImagePullSecrets = el.Spec.ImagePullSecrets
-		//}
-
-		if vc := p.Storage; vc == nil {
-			statefulset.Spec.Template.Spec.Volumes = append(statefulset.Spec.Template.Spec.Volumes, v1.Volume{
-				Name: volumeName(name),
-				VolumeSource: v1.VolumeSource{
-					EmptyDir: &v1.EmptyDirVolumeSource{},
-				},
-			})
-		} else {
-			pvc := v1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: volumeName(name),
-				},
-				Spec: v1.PersistentVolumeClaimSpec{
-					AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-					Resources:   vc.Resources,
-					Selector:    vc.Selector,
-				},
-			}
-			if len(vc.Class) > 0 {
-				pvc.ObjectMeta.Annotations = map[string]string{
-					"volume.beta.kubernetes.io/storage-class": vc.Class,
-				}
-			}
-			statefulset.Spec.VolumeClaimTemplates = append(statefulset.Spec.VolumeClaimTemplates, pvc)
-		}
-
-		if old != nil {
-			statefulset.Annotations = old.Annotations
-
-			// mounted volumes are not reconciled as StatefulSets do not allow
-			// modification of the PodTemplate.
-			// TODO(brancz): remove this once StatefulSets allow modification of the
-			// PodTemplate.
-			statefulset.Spec.Template.Spec.Containers[0].VolumeMounts = old.Spec.Template.Spec.Containers[0].VolumeMounts
-			statefulset.Spec.Template.Spec.Volumes = old.Spec.Template.Spec.Volumes
-		}
-		statefulsets = append(statefulsets, statefulset)
+	if p.BaseImage == "" {
+		p.BaseImage = defaultBaseImage
+	}
+	if p.Version == "" && version == "" {
+		p.Version = defaultVersion
+	}
+	if p.Replicas != nil && *p.Replicas < minReplicas {
+		p.Replicas = &minReplicas
 	}
 
-	return statefulsets, nil
+	if p.Resources.Requests == nil {
+		p.Resources.Requests = v1.ResourceList{}
+	}
+	if _, ok := p.Resources.Requests[v1.ResourceMemory]; !ok {
+		p.Resources.Requests[v1.ResourceMemory] = resource.MustParse("2Gi")
+	}
+
+	spec, err := makeStatefulSetSpec(name, tkey, &el, p, config)
+	if err != nil {
+		return nil, errors.Wrap(err, "make StatefulSet spec")
+	}
+
+	statefulset := &v1beta1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        prefixedName(nameWithKey),
+			Labels:      el.ObjectMeta.Labels,
+			Annotations: el.ObjectMeta.Annotations,
+		},
+		Spec: *spec,
+	}
+
+	// TODO(galexrt) check why k8s.io/client-go hasn't this implemented yet..
+	//if el.Spec.ImagePullSecrets != nil && len(el.Spec.ImagePullSecrets) > 0 {
+	//	statefulset.Template.ImagePullSecrets = el.Spec.ImagePullSecrets
+	//}
+
+	if vc := p.Storage; vc == nil {
+		statefulset.Spec.Template.Spec.Volumes = append(statefulset.Spec.Template.Spec.Volumes, v1.Volume{
+			Name: volumeName(nameWithKey),
+			VolumeSource: v1.VolumeSource{
+				EmptyDir: &v1.EmptyDirVolumeSource{},
+			},
+		})
+	} else {
+		pvc := v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: volumeName(nameWithKey),
+			},
+			Spec: v1.PersistentVolumeClaimSpec{
+				AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+				Resources:   vc.Resources,
+				Selector:    vc.Selector,
+			},
+		}
+		if len(vc.Class) > 0 {
+			pvc.ObjectMeta.Annotations = map[string]string{
+				"volume.beta.kubernetes.io/storage-class": vc.Class,
+			}
+		}
+		statefulset.Spec.VolumeClaimTemplates = append(statefulset.Spec.VolumeClaimTemplates, pvc)
+	}
+
+	if old != nil {
+		statefulset.Annotations = old.Annotations
+
+		// mounted volumes are not reconciled as StatefulSets do not allow
+		// modification of the PodTemplate.
+		// TODO(brancz): remove this once StatefulSets allow modification of the
+		// PodTemplate.
+		statefulset.Spec.Template.Spec.Containers[0].VolumeMounts = old.Spec.Template.Spec.Containers[0].VolumeMounts
+		statefulset.Spec.Template.Spec.Volumes = old.Spec.Template.Spec.Volumes
+	}
+
+	return statefulset, nil
 }
 
 func makeEmptyConfig(name string) (*v1.Secret, error) {
@@ -213,7 +204,7 @@ func makeStatefulSetService(p *v1alpha1.Elasticsearch) *v1.Service {
 	}
 }
 
-func makeStatefulSetSpec(name string, el *v1alpha1.Elasticsearch, p *v1alpha1.ElasticsearchPartSpec, c *config.Config) (*v1beta1.StatefulSetSpec, error) {
+func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alpha1.ElasticsearchPartSpec, c *config.Config) (*v1beta1.StatefulSetSpec, error) {
 	// Elasticsearch may take quite long to shut down to checkpoint existing data.
 	// Allow up to 5 minutes for clean termination.
 	terminationGracePeriod := int64(300)
@@ -236,7 +227,7 @@ func makeStatefulSetSpec(name string, el *v1alpha1.Elasticsearch, p *v1alpha1.El
 			MountPath: "/etc/elasticsearch/config",
 		},
 		{
-			Name:      volumeName(name),
+			Name:      volumeName(name + "-" + tkey),
 			MountPath: "/data",
 		},
 	}
@@ -260,6 +251,16 @@ func makeStatefulSetSpec(name string, el *v1alpha1.Elasticsearch, p *v1alpha1.El
 			Port: intstr.FromString("http"),
 		},
 	}
+
+	securityContext := &v1.SecurityContext{
+		Capabilities: &v1.Capabilities{
+			Add: []v1.Capability{
+				"IPC_LOCK",
+				"SYS_RESOURCE",
+			},
+		},
+	}
+
 	return &v1beta1.StatefulSetSpec{
 		ServiceName: governingServiceName,
 		Replicas:    p.Replicas,
@@ -277,6 +278,10 @@ func makeStatefulSetSpec(name string, el *v1alpha1.Elasticsearch, p *v1alpha1.El
 						Image:        fmt.Sprintf("%s:%s", p.BaseImage, el.Spec.Version),
 						Ports:        ports,
 						VolumeMounts: volumeMounts,
+						Args: []string{
+							// use template var
+							"-Epath.conf=/etc/elasticsearch/" + fmt.Sprintf(configFilenameTemplate, tkey),
+						},
 						LivenessProbe: &v1.Probe{
 							Handler: probeHandler,
 							// For larger servers, restoring a checkpoint on startup may take quite a bit of time.
@@ -292,7 +297,8 @@ func makeStatefulSetSpec(name string, el *v1alpha1.Elasticsearch, p *v1alpha1.El
 							PeriodSeconds:    5,
 							FailureThreshold: 6,
 						},
-						Resources: p.Resources,
+						Resources:       p.Resources,
+						SecurityContext: securityContext,
 					},
 				},
 				ServiceAccountName:            el.Spec.ServiceAccountName,

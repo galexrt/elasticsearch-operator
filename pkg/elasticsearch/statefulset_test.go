@@ -15,9 +15,11 @@
 package elasticsearch
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
+	machineryv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/apps/v1beta1"
@@ -44,11 +46,11 @@ func TestStatefulSetLabelingAndAnnotations(t *testing.T) {
 			Labels:      labels,
 			Annotations: annotations,
 		},
-	}, nil, defaultTestConfig)
+	}, "master", &v1alpha1.ElasticsearchPartSpec{}, nil, defaultTestConfig)
 
 	require.NoError(t, err)
 
-	if !reflect.DeepEqual(labels, sset[0].Labels) || !reflect.DeepEqual(annotations, sset[0].Annotations) {
+	if !reflect.DeepEqual(labels, sset.Labels) || !reflect.DeepEqual(annotations, sset.Annotations) {
 		t.Fatal("Labels or Annotations are not properly being propagated to the StatefulSet")
 	}
 }
@@ -68,7 +70,7 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 									SubPath:   "",
 								},
 								{
-									Name:      "elasticsearch--data",
+									Name:      "elasticsearch-example-master-data",
 									ReadOnly:  false,
 									MountPath: "/data",
 									SubPath:   "",
@@ -81,12 +83,12 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 							Name: "config",
 							VolumeSource: v1.VolumeSource{
 								Secret: &v1.SecretVolumeSource{
-									SecretName: configSecretName(""),
+									SecretName: configSecretName("example"),
 								},
 							},
 						},
 						{
-							Name: "elasticsearch--data",
+							Name: "elasticsearch-example-master-data",
 							VolumeSource: v1.VolumeSource{
 								EmptyDir: &v1.EmptyDirVolumeSource{},
 							},
@@ -97,17 +99,26 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 		},
 	}
 
-	sset, err := makeStatefulSets(v1alpha1.Elasticsearch{}, nil, defaultTestConfig)
+	sset, err := makeStatefulSets(v1alpha1.Elasticsearch{
+		ObjectMeta: machineryv1.ObjectMeta{
+			Name: "example",
+		},
+	}, "master", &v1alpha1.ElasticsearchPartSpec{}, nil, defaultTestConfig)
 
 	require.NoError(t, err)
 
-	if !reflect.DeepEqual(expected.Spec.Template.Spec.Volumes, sset[0].Spec.Template.Spec.Volumes) || !reflect.DeepEqual(expected.Spec.Template.Spec.Containers[0].VolumeMounts, sset[0].Spec.Template.Spec.Containers[0].VolumeMounts) {
+	if !reflect.DeepEqual(expected.Spec.Template.Spec.Volumes, sset.Spec.Template.Spec.Volumes) || !reflect.DeepEqual(expected.Spec.Template.Spec.Containers[0].VolumeMounts, sset.Spec.Template.Spec.Containers[0].VolumeMounts) {
+		fmt.Printf("%+v\n", expected.Spec.Template.Spec.Volumes)
+		fmt.Printf("%+v\n", sset.Spec.Template.Spec.Volumes)
 		t.Fatal("Volumes mounted in a Pod are not created correctly initially.")
 	}
 }
 
 func TestStatefulSetVolumeSkip(t *testing.T) {
 	old := &v1beta1.StatefulSet{
+		ObjectMeta: machineryv1.ObjectMeta{
+			Name: "example",
+		},
 		Spec: v1beta1.StatefulSetSpec{
 			Template: v1.PodTemplateSpec{
 				Spec: v1.PodSpec{
@@ -121,7 +132,7 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 									SubPath:   "",
 								},
 								{
-									Name:      "elasticsearch--data",
+									Name:      "elasticsearch-example-master-data",
 									ReadOnly:  false,
 									MountPath: "/data",
 									SubPath:   "",
@@ -134,12 +145,12 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 							Name: "config",
 							VolumeSource: v1.VolumeSource{
 								Secret: &v1.SecretVolumeSource{
-									SecretName: configSecretName(""),
+									SecretName: configSecretName("example"),
 								},
 							},
 						},
 						{
-							Name: "elasticsearch--data",
+							Name: "elasticsearch-example-master-data",
 							VolumeSource: v1.VolumeSource{
 								EmptyDir: &v1.EmptyDirVolumeSource{},
 							},
@@ -150,11 +161,15 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 		},
 	}
 
-	sset, err := makeStatefulSets(v1alpha1.Elasticsearch{}, old, defaultTestConfig)
+	sset, err := makeStatefulSets(v1alpha1.Elasticsearch{
+		ObjectMeta: machineryv1.ObjectMeta{
+			Name: "example",
+		},
+	}, "master", &v1alpha1.ElasticsearchPartSpec{}, old, defaultTestConfig)
 
 	require.NoError(t, err)
 
-	if !reflect.DeepEqual(old.Spec.Template.Spec.Volumes, sset[0].Spec.Template.Spec.Volumes) || !reflect.DeepEqual(old.Spec.Template.Spec.Containers[0].VolumeMounts, sset[0].Spec.Template.Spec.Containers[0].VolumeMounts) {
+	if !reflect.DeepEqual(old.Spec.Template.Spec.Volumes, sset.Spec.Template.Spec.Volumes) || !reflect.DeepEqual(old.Spec.Template.Spec.Containers[0].VolumeMounts, sset.Spec.Template.Spec.Containers[0].VolumeMounts) {
 		t.Fatal("Volumes mounted in a Pod should not be reconciled.")
 	}
 }

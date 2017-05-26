@@ -1,7 +1,7 @@
 package elasticsearch
 
 import (
-	"bytes"
+	"reflect"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -23,13 +23,13 @@ func TestConfigGeneration(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !bytes.Equal(cfg, testcfg) {
-			t.Fatalf("Config generation is not deterministic.\n\n\nFirst generation: \n\n%s\n\nDifferent generation: \n\n%s\n\n", string(cfg), string(testcfg))
+		if !reflect.DeepEqual(cfg, testcfg) {
+			t.Fatalf("Config generation is not deterministic.\n\n\nFirst generation: \n\n%+v\n\nDifferent generation: \n\n%+v\n\n", cfg, testcfg)
 		}
 	}
 }
 
-func generateTestConfig() ([]byte, error) {
+func generateTestConfig() (map[string][]byte, error) {
 	replicas := int32(1)
 	return generateConfig(
 		&v1alpha1.Elasticsearch{
