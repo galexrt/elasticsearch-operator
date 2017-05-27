@@ -279,7 +279,6 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 						Ports:        ports,
 						VolumeMounts: volumeMounts,
 						Args: []string{
-							// use template var
 							"-Epath.conf=/etc/elasticsearch/" + fmt.Sprintf(configFilenameTemplate, tkey),
 						},
 						LivenessProbe: &v1.Probe{

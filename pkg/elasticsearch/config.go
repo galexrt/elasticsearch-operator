@@ -41,5 +41,11 @@ func generateConfig(p *v1alpha1.Elasticsearch) (map[string][]byte, error) {
 		configs["ingest"] = append(configs["ingest"], "\n"+p.Spec.Ingest.AdditionalConfig...)
 	}
 
+	if len(p.Spec.AdditionalConfig) > 0 {
+		configs["master"] = append(configs["master"], "\n"+p.Spec.AdditionalConfig...)
+		configs["data"] = append(configs["data"], "\n"+p.Spec.AdditionalConfig...)
+		configs["ingest"] = append(configs["ingest"], "\n"+p.Spec.AdditionalConfig...)
+	}
+
 	return configs, nil
 }
