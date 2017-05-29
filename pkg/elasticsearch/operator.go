@@ -413,6 +413,8 @@ func (c *Operator) sync(key string) error {
 		return errors.Wrap(err, "synchronizing governing service failed")
 	}
 
+	getOptions := metav1.GetOptions{}
+
 	for _, tkey := range []string{
 		"master",
 		"data",
@@ -420,8 +422,9 @@ func (c *Operator) sync(key string) error {
 		"discovery",
 	} {
 		// Create statefulset services if they don't exist.
-		if _, err := svcClient.Get(prefixedName(el.Name)+"-"+tkey, metav1.GetOptions{}); k8sutil.IsResourceNotFoundError(err) {
-			if _, err := svcClient.Create(makeStatefulSetService(prefixedName(el.Name)+"-"+tkey, tkey)); err != nil {
+		_, err = svcClient.Get(prefixedName(el.Name)+"-"+tkey, getOptions)
+		if k8sutil.IsResourceNotFoundError(err) {
+			if _, err = svcClient.Create(makeStatefulSetService(prefixedName(el.Name)+"-"+tkey, tkey)); err != nil {
 				return errors.Wrap(err, "synchronizing statefulset service failed")
 			}
 		}
@@ -651,7 +654,10 @@ func (c *Operator) destroyElasticsearch(key string) error {
 		}
 		time.Sleep(100 * time.Millisecond)
 		if err := c.kclient.Core().Pods(namespace).Delete(pods.Items[0].Name, nil); err != nil {
-			return err
+			if !k8sutil.IsResourceNotFoundError(err) {
+				return err
+			}
+			continue
 		}
 		c.kclient.Core().Pods(namespace).Delete(pods.Items[0].Name, nil)
 	}
@@ -688,7 +694,8 @@ func (c *Operator) destroyElasticsearch(key string) error {
 	} {
 		// Delete statefulset services
 		svcClient := c.kclient.Core().Services(namespace)
-		if err := svcClient.Delete(prefixedName(name)+"-"+tkey, &metav1.DeleteOptions{}); err != nil {
+		err := svcClient.Delete(prefixedName(name)+"-"+tkey, &metav1.DeleteOptions{})
+		if err != nil && !k8sutil.IsResourceNotFoundError(err) {
 			return errors.Wrap(err, "synchronizing statefulset service failed")
 		}
 	}

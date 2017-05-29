@@ -66,14 +66,12 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 								{
 									Name:      "config",
 									ReadOnly:  true,
-									MountPath: "/elasticsearch/config",
-									SubPath:   "",
+									MountPath: "/config",
 								},
 								{
 									Name:      "elasticsearch-example-master-data",
 									ReadOnly:  false,
 									MountPath: "/data",
-									SubPath:   "",
 								},
 							},
 						},
@@ -83,16 +81,19 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 							Name: "config",
 							VolumeSource: v1.VolumeSource{
 								Secret: &v1.SecretVolumeSource{
-									SecretName: configSecretName("example"),
+									SecretName: configSecretName("example-master"),
 									Items: []v1.KeyToPath{
 										{
-											Key: configFilename,
+											Key:  configFilename,
+											Path: configFilename,
 										},
 										{
-											Key: "log4j2.properties",
+											Key:  "log4j2.properties",
+											Path: "log4j2.properties",
 										},
 										{
-											Key: "jvm.options",
+											Key:  "jvm.options",
+											Path: "jvm.options",
 										},
 									},
 								},
@@ -139,14 +140,12 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 								{
 									Name:      "config",
 									ReadOnly:  true,
-									MountPath: "/elasticsearch/config",
-									SubPath:   "",
+									MountPath: "/config",
 								},
 								{
 									Name:      "elasticsearch-example-master-data",
 									ReadOnly:  false,
 									MountPath: "/data",
-									SubPath:   "",
 								},
 							},
 						},
@@ -159,13 +158,16 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 									SecretName: configSecretName("example-master"),
 									Items: []v1.KeyToPath{
 										{
-											Key: configFilename,
+											Key:  configFilename,
+											Path: configFilename,
 										},
 										{
-											Key: "log4j2.properties",
+											Key:  "log4j2.properties",
+											Path: "log4j2.properties",
 										},
 										{
-											Key: "jvm.options",
+											Key:  "jvm.options",
+											Path: "jvm.options",
 										},
 									},
 								},

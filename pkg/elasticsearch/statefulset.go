@@ -17,6 +17,7 @@ package elasticsearch
 import (
 	"fmt"
 	"path"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -244,16 +245,19 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 			Name: "config",
 			VolumeSource: v1.VolumeSource{
 				Secret: &v1.SecretVolumeSource{
-					SecretName: configSecretName(name),
+					SecretName: configSecretName(name + "-" + tkey),
 					Items: []v1.KeyToPath{
 						{
-							Key: configFilename,
+							Key:  configFilename,
+							Path: configFilename,
 						},
 						{
-							Key: "log4j2.properties",
+							Key:  "log4j2.properties",
+							Path: "log4j2.properties",
 						},
 						{
-							Key: "jvm.options",
+							Key:  "jvm.options",
+							Path: "jvm.options",
 						},
 					},
 				},
@@ -265,7 +269,7 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 		{
 			Name:      "config",
 			ReadOnly:  true,
-			MountPath: "/elasticsearch/config",
+			MountPath: "/config",
 		},
 		{
 			Name:      volumeName(name + "-" + tkey),
@@ -302,7 +306,7 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 		},
 	}
 
-	return &v1beta1.StatefulSetSpec{
+	statefulSetSpec := &v1beta1.StatefulSetSpec{
 		ServiceName: governingServiceName,
 		Replicas:    p.Replicas,
 		Template: v1.PodTemplateSpec{
@@ -321,10 +325,22 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 						Ports:        ports,
 						VolumeMounts: volumeMounts,
 						Args: []string{
-							"sleep",
-							"3600",
-							//							"/run.sh",
-							//							"-Epath.conf=/config/" + configFilename,
+							"/run.sh",
+						},
+						// TODO(galexrt) Allow env vars per part from user
+						Env: []v1.EnvVar{
+							{
+								Name: "NODE_NAME",
+								ValueFrom: &v1.EnvVarSource{
+									FieldRef: &v1.ObjectFieldSelector{
+										FieldPath: "metadata.name",
+									},
+								},
+							},
+							{
+								Name:  "CONFIG_DIR",
+								Value: "/config",
+							},
 						},
 						LivenessProbe: &v1.Probe{
 							Handler: probeHandler,
@@ -351,7 +367,29 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 				Volumes: volumes,
 			},
 		},
-	}, nil
+	}
+
+	for _, key := range []string{
+		"master",
+		"data",
+		"ingest",
+	} {
+		value := "false"
+		if key == tkey {
+			value = "true"
+		}
+
+		statefulSetSpec.Template.Spec.Containers[0].Env = append(statefulSetSpec.Template.Spec.Containers[0].Env, v1.EnvVar{
+			Name:  "NODE_" + strings.ToUpper(key),
+			Value: value,
+		})
+	}
+
+	for _, env := range p.Env {
+		statefulSetSpec.Template.Spec.Containers[0].Env = append(statefulSetSpec.Template.Spec.Containers[0].Env, env)
+	}
+
+	return statefulSetSpec, nil
 }
 
 func configSecretName(name string) string {

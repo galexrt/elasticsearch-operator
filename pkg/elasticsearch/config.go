@@ -18,6 +18,7 @@ import (
 	"regexp"
 
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
+	"github.com/galexrt/elasticsearch-operator/pkg/utils"
 )
 
 var (
@@ -43,15 +44,46 @@ func generateConfig(p *v1alpha1.Elasticsearch, tkey string) (map[string][]byte, 
 	} else if tkey == "ingest" {
 		part = p.Spec.Ingest
 	}
-	configs[configFilename] = generateElasticsearchConfig(p, part)
+	configs[configFilename] = generateElasticsearchConfig(p, tkey, part)
 	configs[jvmOpts] = generateJvmOptsConfig(p, part)
 	configs[log4jFilename] = generateLog4JConfig(p, part)
 
 	return configs, nil
 }
 
-func generateElasticsearchConfig(p *v1alpha1.Elasticsearch, part *v1alpha1.ElasticsearchPartSpec) []byte {
-	config := []byte{}
+func generateElasticsearchConfig(p *v1alpha1.Elasticsearch, tkey string, part *v1alpha1.ElasticsearchPartSpec) []byte {
+	minimumMasterNodes := *p.Spec.Master.Replicas - int32(1)
+	if minimumMasterNodes <= 0 {
+		minimumMasterNodes = 1
+	}
+
+	config := []byte(`cluster:
+  name: ` + p.Name + `
+
+node:
+  name: ${NODE_NAME}
+  master: ${NODE_MASTER}
+  data: ${NODE_DATA}
+  ingest: ${NODE_INGEST}
+  # was ${MAX_LOCAL_STORAGE_NODES}
+  max_local_storage_nodes: 1
+network.host: 0.0.0.0
+path:
+  data: /data/data
+  logs: /data/log
+bootstrap:
+  memory_lock: true
+http:
+  enabled: true
+  compression: true
+  cors:
+    enabled: true
+    allow-origin: "*"
+discovery:
+  zen:
+    ping.unicast.hosts: elasticsearch-discovery
+    minimum_master_nodes: ` + utils.String(minimumMasterNodes) + "\n")
+
 	if part != nil {
 		if len(part.AdditionalConfig) > 0 {
 			config = append(config, "\n"+part.AdditionalConfig...)
@@ -61,15 +93,51 @@ func generateElasticsearchConfig(p *v1alpha1.Elasticsearch, part *v1alpha1.Elast
 	if len(p.Spec.AdditionalConfig) > 0 {
 		config = append(config, "\n"+p.Spec.AdditionalConfig...)
 	}
+
 	return config
 }
 
 func generateJvmOptsConfig(p *v1alpha1.Elasticsearch, part *v1alpha1.ElasticsearchPartSpec) []byte {
 	// TODO(galexrt)
-	return []byte{}
+	config := []byte(`-XX:+UseConcMarkSweepGC
+-XX:CMSInitiatingOccupancyFraction=75
+-XX:+UseCMSInitiatingOccupancyOnly
+-XX:+DisableExplicitGC
+-XX:+AlwaysPreTouch
+-server
+-Xss1m
+-Djava.awt.headless=true
+-Dfile.encoding=UTF-8
+-Djna.nosys=true
+-Djdk.io.permissionsUseCanonicalPath=true
+-Dio.netty.noUnsafe=true
+-Dio.netty.noKeySetOptimization=true
+-Dlog4j.shutdownHookEnabled=false
+-Dlog4j2.disable.jmx=true
+-Dlog4j.skipJansi=true
+-XX:+HeapDumpOnOutOfMemoryError
+`)
+
+	if len(part.JavaOpts) > 0 {
+		config = append(config, "\n"+part.JavaOpts...)
+	}
+
+	if p.Spec.JavaMemoryControl {
+		// TODO(galexrt) add xmx thingy args to config
+	}
+
+	return config
 }
 
 func generateLog4JConfig(p *v1alpha1.Elasticsearch, part *v1alpha1.ElasticsearchPartSpec) []byte {
 	// TODO(galexrt)
-	return []byte{}
+	config := []byte(`status = error
+appender.console.type = Console
+appender.console.name = console
+appender.console.layout.type = PatternLayout
+appender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] %marker%m%n
+rootLogger.level = info
+rootLogger.appenderRef.console.ref = console
+`)
+	return config
 }

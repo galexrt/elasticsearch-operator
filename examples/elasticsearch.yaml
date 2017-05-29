@@ -15,10 +15,9 @@ spec:
     replicas: 1
 #    resources:
 #      limits:
-#        cpu: "2.5"
-#        memory: "16Gi"
+#        memory: "512Mi"
 #      requests:
-#        memory: "14Gi"
+#        memory: "512Mi"
     javaOpts: ""
     additionalConfig: |
       # test
@@ -33,10 +32,9 @@ spec:
 #      "k8s.io/hostname": "example"
 #    resources:
 #      limits:
-#        cpu: "2.5"
-#        memory: "16Gi"
+#        memory: "512Mi"
 #      requests:
-#        memory: "14Gi"
+#        memory: "512Mi"
     javaOpts: ""
     additionalConfig: |
       # test
@@ -49,10 +47,9 @@ spec:
     replicas: 1
 #    resources:
 #      limits:
-#        cpu: "2.5"
-#        memory: "16Gi"
+#        memory: "512Mi"
 #      requests:
-#        memory: "14Gi"
+#        memory: "512Mi"
     javaOpts: ""
     additionalConfig: |
       # test

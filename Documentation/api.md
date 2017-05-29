@@ -83,6 +83,7 @@ ElasticsearchPartSpec TODO
 | javaOpts | Set the java options | string | false |
 | additionalConfig | Additional config in form of a string to add to the master config file | string | false |
 | status | Most recent observed status of the Elasticsearch cluster. Read-only. Not included when requesting from the apiserver, only from the Elasticsearch Operator API itself. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status | *[ElasticsearchStatus](#elasticsearchstatus) | false |
+| env | User specific env vars | []v1.EnvVar | false |
 
 ## ElasticsearchSpec
 

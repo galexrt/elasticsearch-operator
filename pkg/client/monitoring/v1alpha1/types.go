@@ -95,6 +95,8 @@ type ElasticsearchPartSpec struct {
 	// Operator API itself. More info:
 	// http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
 	Status *ElasticsearchStatus `json:"status,omitempty"`
+	// User specific env vars
+	Env []v1.EnvVar `json:"env,omitempty"`
 }
 
 // ElasticsearchStatus Most recent observed status of the Elasticsearch cluster.

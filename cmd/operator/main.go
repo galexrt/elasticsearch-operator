@@ -80,7 +80,8 @@ func Main() int {
 	}
 
 	web.Register(http.DefaultServeMux)
-	l, err := net.Listen("tcp", ":8080")
+	// TODO Change back to 8080
+	l, err := net.Listen("tcp", ":8081")
 	if err != nil {
 		fmt.Fprint(os.Stderr, err)
 		return 1
