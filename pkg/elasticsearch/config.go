@@ -15,7 +15,6 @@
 package elasticsearch
 
 import (
-	"fmt"
 	"regexp"
 
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
@@ -34,12 +33,6 @@ rootLogger.appenderRef.console.ref = console`
 
 func generateConfig(p *v1alpha1.Elasticsearch, tkey string) (map[string][]byte, error) {
 	configs := map[string][]byte{}
-
-	fmt.Printf("=>\n")
-	fmt.Printf("=>\n")
-	fmt.Printf("=> GENERATING CONFIG FOR %+v\n", tkey)
-	fmt.Printf("=>\n")
-	fmt.Printf("=>\n")
 
 	var part *v1alpha1.ElasticsearchPartSpec
 
@@ -61,7 +54,7 @@ func generateElasticsearchConfig(p *v1alpha1.Elasticsearch, part *v1alpha1.Elast
 	config := []byte{}
 	if part != nil {
 		if len(part.AdditionalConfig) > 0 {
-			config = append(config, "\n"+p.Spec.AdditionalConfig...)
+			config = append(config, "\n"+part.AdditionalConfig...)
 		}
 	}
 

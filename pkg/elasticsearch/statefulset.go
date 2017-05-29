@@ -179,7 +179,7 @@ func makeConfigSecret(name string) (*v1.Secret, error) {
 	}, nil
 }
 
-func makeStatefulSetService(p *v1alpha1.Elasticsearch) *v1.Service {
+func makeGovenorningService(p *v1alpha1.Elasticsearch) *v1.Service {
 	return &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: governingServiceName,
@@ -197,11 +197,40 @@ func makeStatefulSetService(p *v1alpha1.Elasticsearch) *v1.Service {
 				},
 			},
 			Selector: map[string]string{
-				"app":  "elasticsearch",
-				"role": "http",
+				"app": "elasticsearch",
 			},
 		},
 	}
+}
+
+func makeStatefulSetService(name, tkey string) *v1.Service {
+	svc := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				"operated-elasticsearch": "true",
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name:       "http",
+					Port:       9200,
+					TargetPort: intstr.FromString("http"),
+				},
+			},
+			Selector: map[string]string{
+				"app":  "elasticsearch",
+				"role": tkey,
+			},
+		},
+	}
+	if tkey != "discovery" {
+		svc.Spec.ClusterIP = "None"
+	} else {
+		svc.Spec.ClusterIP = ""
+	}
+	return svc
 }
 
 func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alpha1.ElasticsearchPartSpec, c *config.Config) (*v1beta1.StatefulSetSpec, error) {
@@ -218,7 +247,7 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 					SecretName: configSecretName(name),
 					Items: []v1.KeyToPath{
 						{
-							Key: fmt.Sprintf(configFilename, tkey),
+							Key: configFilename,
 						},
 						{
 							Key: "log4j2.properties",
@@ -295,7 +324,7 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 							"sleep",
 							"3600",
 							//							"/run.sh",
-							//							"-Epath.conf=/config/" + fmt.Sprintf(configFilename, tkey),
+							//							"-Epath.conf=/config/" + configFilename,
 						},
 						LivenessProbe: &v1.Probe{
 							Handler: probeHandler,

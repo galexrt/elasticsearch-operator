@@ -392,7 +392,7 @@ func (c *Operator) sync(key string) error {
 	if err := c.createConfig(el); err != nil {
 		return errors.Wrap(err, "creating config failed")
 	}
-	/*for _, tkey := range []string{
+	for _, tkey := range []string{
 		"master",
 		"data",
 		"ingest",
@@ -405,15 +405,27 @@ func (c *Operator) sync(key string) error {
 		if _, err := c.kclient.Core().Secrets(el.Namespace).Create(s); err != nil && !apierrors.IsAlreadyExists(err) {
 			return errors.Wrap(err, "creating empty config file failed")
 		}
-	}*/
+	}
 
 	// Create governing service if it doesn't exist.
 	svcClient := c.kclient.Core().Services(el.Namespace)
-	if err := k8sutil.CreateOrUpdateService(svcClient, makeStatefulSetService(el)); err != nil {
+	if err := k8sutil.CreateOrUpdateService(svcClient, makeGovenorningService(el)); err != nil {
 		return errors.Wrap(err, "synchronizing governing service failed")
 	}
 
-	// TODO(galexrt) create the other services (see above)
+	for _, tkey := range []string{
+		"master",
+		"data",
+		"ingest",
+		"discovery",
+	} {
+		// Create statefulset services if they don't exist.
+		if _, err := svcClient.Get(prefixedName(el.Name)+"-"+tkey, metav1.GetOptions{}); k8sutil.IsResourceNotFoundError(err) {
+			if _, err := svcClient.Create(makeStatefulSetService(prefixedName(el.Name)+"-"+tkey, tkey)); err != nil {
+				return errors.Wrap(err, "synchronizing statefulset service failed")
+			}
+		}
+	}
 
 	ssetClient := c.kclient.Apps().StatefulSets(el.Namespace)
 
@@ -644,23 +656,40 @@ func (c *Operator) destroyElasticsearch(key string) error {
 		c.kclient.Core().Pods(namespace).Delete(pods.Items[0].Name, nil)
 	}
 
-	// Delete the auto-generate configuration.
-	// TODO(fabxc): add an ownerRef at creation so we don't delete Secrets
-	// manually created for Elasticsearch servers with no ServiceMonitor selectors.
-	s := c.kclient.Core().Secrets(namespace)
-	secret, err := s.Get(configSecretName(name), metav1.GetOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		return errors.Wrap(err, "retrieving config Secret failed")
-	}
-	if apierrors.IsNotFound(err) {
-		// Secret does not exist so nothing to clean up
-		return nil
+	for _, tkey := range []string{
+		"master",
+		"data",
+		"ingest",
+	} {
+		// Delete the auto-generate configuration.
+		s := c.kclient.Core().Secrets(namespace)
+		secret, err := s.Get(configSecretName(name+"-"+tkey), metav1.GetOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			return errors.Wrap(err, "retrieving config Secret failed")
+		}
+		if apierrors.IsNotFound(err) {
+			// Secret does not exist so nothing to clean up
+			continue
+		}
+
+		value, found := secret.Labels[managedByOperatorLabel]
+		if found && value == managedByOperatorLabelValue {
+			if err := s.Delete(configSecretName(name+"-"+tkey), nil); err != nil {
+				return errors.Wrap(err, "deleting config Secret failed")
+			}
+		}
 	}
 
-	value, found := secret.Labels[managedByOperatorLabel]
-	if found && value == managedByOperatorLabelValue {
-		if err := s.Delete(configSecretName(name), nil); err != nil {
-			return errors.Wrap(err, "deleting config Secret failed")
+	for _, tkey := range []string{
+		"master",
+		"data",
+		"ingest",
+		"discovery",
+	} {
+		// Delete statefulset services
+		svcClient := c.kclient.Core().Services(namespace)
+		if err := svcClient.Delete(prefixedName(name)+"-"+tkey, &metav1.DeleteOptions{}); err != nil {
+			return errors.Wrap(err, "synchronizing statefulset service failed")
 		}
 	}
 
@@ -720,7 +749,7 @@ func (c *Operator) createConfig(p *v1alpha1.Elasticsearch) error {
 			}
 		}
 		if ok == 1 {
-			return nil
+			continue
 		}
 
 		c.logger.Log("msg", "updating configuration")

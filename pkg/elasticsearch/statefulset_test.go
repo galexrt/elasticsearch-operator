@@ -66,7 +66,7 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 								{
 									Name:      "config",
 									ReadOnly:  true,
-									MountPath: "/config",
+									MountPath: "/elasticsearch/config",
 									SubPath:   "",
 								},
 								{
@@ -119,8 +119,8 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 	require.NoError(t, err)
 
 	if !reflect.DeepEqual(expected.Spec.Template.Spec.Volumes, sset.Spec.Template.Spec.Volumes) || !reflect.DeepEqual(expected.Spec.Template.Spec.Containers[0].VolumeMounts, sset.Spec.Template.Spec.Containers[0].VolumeMounts) {
-		fmt.Printf("%+v\n", expected.Spec.Template.Spec.Volumes)
-		fmt.Printf("%+v\n", sset.Spec.Template.Spec.Volumes)
+		fmt.Printf("%+v\n", expected.Spec.Template.Spec.Containers[0].VolumeMounts)
+		fmt.Printf("%+v\n", sset.Spec.Template.Spec.Containers[0].VolumeMounts)
 		t.Fatal("Volumes mounted in a Pod are not created correctly initially.")
 	}
 }
@@ -139,7 +139,7 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 								{
 									Name:      "config",
 									ReadOnly:  true,
-									MountPath: "/config",
+									MountPath: "/elasticsearch/config",
 									SubPath:   "",
 								},
 								{
