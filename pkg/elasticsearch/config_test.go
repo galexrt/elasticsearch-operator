@@ -48,5 +48,6 @@ func generateTestConfig() (map[string][]byte, error) {
 				},
 			},
 		},
+		"master",
 	)
 }

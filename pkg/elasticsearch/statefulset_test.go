@@ -66,7 +66,7 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 								{
 									Name:      "config",
 									ReadOnly:  true,
-									MountPath: "/etc/elasticsearch/config",
+									MountPath: "/config",
 									SubPath:   "",
 								},
 								{
@@ -84,6 +84,17 @@ func TestStatefulSetVolumeInitial(t *testing.T) {
 							VolumeSource: v1.VolumeSource{
 								Secret: &v1.SecretVolumeSource{
 									SecretName: configSecretName("example"),
+									Items: []v1.KeyToPath{
+										{
+											Key: configFilename,
+										},
+										{
+											Key: "log4j2.properties",
+										},
+										{
+											Key: "jvm.options",
+										},
+									},
 								},
 							},
 						},
@@ -128,7 +139,7 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 								{
 									Name:      "config",
 									ReadOnly:  true,
-									MountPath: "/etc/elasticsearch/config",
+									MountPath: "/config",
 									SubPath:   "",
 								},
 								{
@@ -145,7 +156,18 @@ func TestStatefulSetVolumeSkip(t *testing.T) {
 							Name: "config",
 							VolumeSource: v1.VolumeSource{
 								Secret: &v1.SecretVolumeSource{
-									SecretName: configSecretName("example"),
+									SecretName: configSecretName("example-master"),
+									Items: []v1.KeyToPath{
+										{
+											Key: configFilename,
+										},
+										{
+											Key: "log4j2.properties",
+										},
+										{
+											Key: "jvm.options",
+										},
+									},
 								},
 							},
 						},

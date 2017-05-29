@@ -44,8 +44,10 @@ import (
 )
 
 const (
-	tprElasticsearch       = "elasticsearch." + v1alpha1.TPRGroup
-	configFilenameTemplate = "elasticsearch-%s.yaml"
+	tprElasticsearch = "elasticsearch." + v1alpha1.TPRGroup
+	configFilename   = "elasticsearch.yml"
+	log4jFilename    = "log4j2.properties"
+	jvmOpts          = "jvm.options"
 
 	resyncPeriod = 5 * time.Minute
 )
@@ -390,15 +392,20 @@ func (c *Operator) sync(key string) error {
 	if err := c.createConfig(el); err != nil {
 		return errors.Wrap(err, "creating config failed")
 	}
-
-	// Create Secret if it doesn't exist.
-	s, err := makeEmptyConfig(el.ObjectMeta.Name)
-	if err != nil {
-		return errors.Wrap(err, "generating empty config secret failed")
-	}
-	if _, err := c.kclient.Core().Secrets(el.Namespace).Create(s); err != nil && !apierrors.IsAlreadyExists(err) {
-		return errors.Wrap(err, "creating empty config file failed")
-	}
+	/*for _, tkey := range []string{
+		"master",
+		"data",
+		"ingest",
+	} {
+		// Create Secret if it doesn't exist.
+		s, err := makeEmptyConfig(el.ObjectMeta.Name + "-" + tkey)
+		if err != nil {
+			return errors.Wrap(err, "generating empty config secret failed")
+		}
+		if _, err := c.kclient.Core().Secrets(el.Namespace).Create(s); err != nil && !apierrors.IsAlreadyExists(err) {
+			return errors.Wrap(err, "creating empty config file failed")
+		}
+	}*/
 
 	// Create governing service if it doesn't exist.
 	svcClient := c.kclient.Core().Services(el.Namespace)
@@ -607,25 +614,6 @@ func (c *Operator) destroyElasticsearch(key string) error {
 			return errors.Wrap(err, "updating statefulset for scale-down failed")
 		}
 
-		podClient := c.kclient.Core().Pods(sset.Namespace)
-
-		// TODO(fabxc): temprorary solution until StatefulSet status provides necessary info to know
-		// whether scale-down completed.
-		for {
-			pods, err := podClient.List(ListOptions(elasticsearchNameFromStatefulSetName(sset.Name)))
-			if err != nil {
-				return errors.Wrap(err, "retrieving pods of statefulset "+tkey+" failed")
-			}
-
-			if len(pods.Items) == 0 {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-			if err := c.kclient.Core().Pods(sset.Namespace).Delete(pods.Items[0].Name, nil); err != nil {
-				return err
-			}
-		}
-
 		// StatefulSet can be deleted.
 		if err := ssetClient.Delete(sset.Name, nil); err != nil {
 			return errors.Wrap(err, "deleting statefulset failed")
@@ -633,8 +621,28 @@ func (c *Operator) destroyElasticsearch(key string) error {
 	}
 
 	nameParts := strings.Split(key, "/")
-	namespace := nameParts[0]
 	name := nameParts[1]
+	namespace := nameParts[0]
+
+	podClient := c.kclient.Core().Pods(namespace)
+
+	// TODO(fabxc): temprorary solution until StatefulSet status provides necessary info to know
+	// whether scale-down completed.
+	for {
+		pods, err := podClient.List(ListOptions(elasticsearchNameFromStatefulSetName(name)))
+		if err != nil {
+			return errors.Wrap(err, "retrieving pods of statefulset failed")
+		}
+
+		if len(pods.Items) == 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+		if err := c.kclient.Core().Pods(namespace).Delete(pods.Items[0].Name, nil); err != nil {
+			return err
+		}
+		c.kclient.Core().Pods(namespace).Delete(pods.Items[0].Name, nil)
+	}
 
 	// Delete the auto-generate configuration.
 	// TODO(fabxc): add an ownerRef at creation so we don't delete Secrets
@@ -660,58 +668,67 @@ func (c *Operator) destroyElasticsearch(key string) error {
 }
 
 func (c *Operator) createConfig(p *v1alpha1.Elasticsearch) error {
-
+	var err error
 	sClient := c.kclient.CoreV1().Secrets(p.Namespace)
+	for _, tkey := range []string{
+		"master",
+		"data",
+		"ingest",
+	} {
+		// Update secret based on the most recent configuration.
+		config, err := generateConfig(p, tkey)
+		if err != nil {
+			return errors.Wrap(err, "generating config failed")
+		}
 
-	// Update secret based on the most recent configuration.
-	confs, err := generateConfig(p)
-	if err != nil {
-		return errors.Wrap(err, "generating config failed")
-	}
+		s, err := makeConfigSecret(p.Name + "-" + tkey)
+		if err != nil {
+			return errors.Wrap(err, "generating base secret failed")
+		}
+		s.ObjectMeta.Annotations = map[string]string{
+			"generated": "true",
+		}
+		s.Data = config
 
-	s, err := makeConfigSecret(p.Name)
-	if err != nil {
-		return errors.Wrap(err, "generating base secret failed")
-	}
-	s.ObjectMeta.Annotations = map[string]string{
-		"generated": "true",
-	}
-	s.Data[fmt.Sprintf(configFilenameTemplate, "master")] = []byte(confs["master"])
-	s.Data[fmt.Sprintf(configFilenameTemplate, "data")] = []byte(confs["data"])
-	s.Data[fmt.Sprintf(configFilenameTemplate, "ingest")] = []byte(confs["ingest"])
+		curSecret, err := sClient.Get(s.Name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			c.logger.Log("msg", "creating configuration")
+			_, err = sClient.Create(s)
+			if err != nil {
+				return err
+			}
+			continue
+		}
 
-	curSecret, err := sClient.Get(s.Name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		c.logger.Log("msg", "creating configuration")
-		_, err = sClient.Create(s)
-		return err
-	}
+		ok := -1
 
-	ok := -1
-
-	for configFilename, generatedConf := range s.Data {
-		curConfig, curConfigFound := curSecret.Data[configFilename]
-		if curConfigFound {
-			if bytes.Equal(curConfig, generatedConf) {
-				c.logger.Log("msg", "updating config skipped, no configuration change")
-				if ok == -1 {
-					ok = 1
+		for configFilename, generatedConf := range s.Data {
+			curConfig, curConfigFound := curSecret.Data[configFilename]
+			if curConfigFound {
+				if bytes.Equal(curConfig, generatedConf) {
+					c.logger.Log("msg", "updating config skipped, no configuration change")
+					if ok == -1 {
+						ok = 1
+					}
+				} else {
+					ok = 0
+					c.logger.Log("msg", "current config has changed")
 				}
 			} else {
 				ok = 0
-				c.logger.Log("msg", "current config has changed")
+				c.logger.Log("msg", "no current config found", "currentConfigFound", curConfigFound)
 			}
-		} else {
-			ok = 0
-			c.logger.Log("msg", "no current config found", "currentConfigFound", curConfigFound)
+		}
+		if ok == 1 {
+			return nil
+		}
+
+		c.logger.Log("msg", "updating configuration")
+		_, err = sClient.Update(s)
+		if err != nil {
+			return err
 		}
 	}
-	if ok == 1 {
-		return nil
-	}
-
-	c.logger.Log("msg", "updating configuration")
-	_, err = sClient.Update(s)
 	return err
 }
 

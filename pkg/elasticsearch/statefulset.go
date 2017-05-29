@@ -166,9 +166,9 @@ func (l *ConfigMapReferenceList) Swap(i, j int) {
 
 func makeConfigSecret(name string) (*v1.Secret, error) {
 	data := map[string][]byte{
-		fmt.Sprintf(configFilenameTemplate, "master"): []byte{},
-		fmt.Sprintf(configFilenameTemplate, "data"):   []byte{},
-		fmt.Sprintf(configFilenameTemplate, "ingest"): []byte{},
+		configFilename: []byte{},
+		jvmOpts:        []byte{},
+		log4jFilename:  []byte{},
 	}
 	return &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -207,7 +207,8 @@ func makeStatefulSetService(p *v1alpha1.Elasticsearch) *v1.Service {
 func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alpha1.ElasticsearchPartSpec, c *config.Config) (*v1beta1.StatefulSetSpec, error) {
 	// Elasticsearch may take quite long to shut down to checkpoint existing data.
 	// Allow up to 5 minutes for clean termination.
-	terminationGracePeriod := int64(300)
+	// TODO change back to 300 or so
+	terminationGracePeriod := int64(10)
 
 	volumes := []v1.Volume{
 		{
@@ -215,6 +216,17 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 			VolumeSource: v1.VolumeSource{
 				Secret: &v1.SecretVolumeSource{
 					SecretName: configSecretName(name),
+					Items: []v1.KeyToPath{
+						{
+							Key: fmt.Sprintf(configFilename, tkey),
+						},
+						{
+							Key: "log4j2.properties",
+						},
+						{
+							Key: "jvm.options",
+						},
+					},
 				},
 			},
 		},
@@ -224,7 +236,7 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 		{
 			Name:      "config",
 			ReadOnly:  true,
-			MountPath: "/etc/elasticsearch/config",
+			MountPath: "/elasticsearch/config",
 		},
 		{
 			Name:      volumeName(name + "-" + tkey),
@@ -269,6 +281,7 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 				Labels: map[string]string{
 					"app":           "elasticsearch",
 					"elasticsearch": name,
+					"role":          tkey,
 				},
 			},
 			Spec: v1.PodSpec{
@@ -279,7 +292,10 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 						Ports:        ports,
 						VolumeMounts: volumeMounts,
 						Args: []string{
-							"-Epath.conf=/etc/elasticsearch/" + fmt.Sprintf(configFilenameTemplate, tkey),
+							"sleep",
+							"3600",
+							//							"/run.sh",
+							//							"-Epath.conf=/config/" + fmt.Sprintf(configFilename, tkey),
 						},
 						LivenessProbe: &v1.Probe{
 							Handler: probeHandler,

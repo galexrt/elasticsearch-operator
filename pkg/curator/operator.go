@@ -45,7 +45,7 @@ import (
 
 const (
 	tprCurator      = "curator." + v1alpha1.TPRGroup
-	configFilename  = "curator.yaml"
+	configFilename  = "curator.yml"
 	actionsFilename = "action_file.yml"
 
 	resyncPeriod = 5 * time.Minute

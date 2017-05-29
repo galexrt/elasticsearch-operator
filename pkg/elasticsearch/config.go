@@ -15,6 +15,7 @@
 package elasticsearch
 
 import (
+	"fmt"
 	"regexp"
 
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
@@ -22,30 +23,60 @@ import (
 
 var (
 	invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
+	defaultJavaOpts    = `status = error
+appender.console.type = Console
+appender.console.name = console
+appender.console.layout.type = PatternLayout
+appender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] %marker%m%n
+rootLogger.level = info
+rootLogger.appenderRef.console.ref = console`
 )
 
-func generateConfig(p *v1alpha1.Elasticsearch) (map[string][]byte, error) {
-	configs := map[string][]byte{
-		"master": []byte(""),
-		"data":   []byte(""),
-		"ingest": []byte(""),
-	}
+func generateConfig(p *v1alpha1.Elasticsearch, tkey string) (map[string][]byte, error) {
+	configs := map[string][]byte{}
 
-	if p.Spec.Master != nil && len(p.Spec.Master.AdditionalConfig) > 0 {
-		configs["master"] = append(configs["master"], "\n"+p.Spec.Master.AdditionalConfig...)
+	fmt.Printf("=>\n")
+	fmt.Printf("=>\n")
+	fmt.Printf("=> GENERATING CONFIG FOR %+v\n", tkey)
+	fmt.Printf("=>\n")
+	fmt.Printf("=>\n")
+
+	var part *v1alpha1.ElasticsearchPartSpec
+
+	if tkey == "data" {
+		part = p.Spec.Data
+	} else if tkey == "master" {
+		part = p.Spec.Master
+	} else if tkey == "ingest" {
+		part = p.Spec.Ingest
 	}
-	if p.Spec.Data != nil && len(p.Spec.Data.AdditionalConfig) > 0 {
-		configs["data"] = append(configs["data"], "\n"+p.Spec.Data.AdditionalConfig...)
-	}
-	if p.Spec.Ingest != nil && len(p.Spec.Ingest.AdditionalConfig) > 0 {
-		configs["ingest"] = append(configs["ingest"], "\n"+p.Spec.Ingest.AdditionalConfig...)
+	configs[configFilename] = generateElasticsearchConfig(p, part)
+	configs[jvmOpts] = generateJvmOptsConfig(p, part)
+	configs[log4jFilename] = generateLog4JConfig(p, part)
+
+	return configs, nil
+}
+
+func generateElasticsearchConfig(p *v1alpha1.Elasticsearch, part *v1alpha1.ElasticsearchPartSpec) []byte {
+	config := []byte{}
+	if part != nil {
+		if len(part.AdditionalConfig) > 0 {
+			config = append(config, "\n"+p.Spec.AdditionalConfig...)
+		}
 	}
 
 	if len(p.Spec.AdditionalConfig) > 0 {
-		configs["master"] = append(configs["master"], "\n"+p.Spec.AdditionalConfig...)
-		configs["data"] = append(configs["data"], "\n"+p.Spec.AdditionalConfig...)
-		configs["ingest"] = append(configs["ingest"], "\n"+p.Spec.AdditionalConfig...)
+		config = append(config, "\n"+p.Spec.AdditionalConfig...)
 	}
+	return config
+}
 
-	return configs, nil
+func generateJvmOptsConfig(p *v1alpha1.Elasticsearch, part *v1alpha1.ElasticsearchPartSpec) []byte {
+	// TODO(galexrt)
+	return []byte{}
+}
+
+func generateLog4JConfig(p *v1alpha1.Elasticsearch, part *v1alpha1.ElasticsearchPartSpec) []byte {
+	// TODO(galexrt)
+	return []byte{}
 }
