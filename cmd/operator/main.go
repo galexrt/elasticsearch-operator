@@ -32,11 +32,13 @@ import (
 	"github.com/galexrt/elasticsearch-operator/pkg/curator"
 	"github.com/galexrt/elasticsearch-operator/pkg/elasticsearch"
 	"github.com/go-kit/kit/log"
+	"github.com/prometheus/common/version"
 )
 
 var (
 	cfg              config.Config
 	analyticsEnabled bool
+	versionInfo      bool
 )
 
 func init() {
@@ -48,12 +50,18 @@ func init() {
 	flagset.StringVar(&cfg.TLSConfig.CAFile, "ca-file", "", "- NOT RECOMMENDED FOR PRODUCTION - Path to TLS CA file.")
 	flagset.BoolVar(&cfg.TLSInsecure, "tls-insecure", false, "- NOT RECOMMENDED FOR PRODUCTION - Don't verify API server's CA certificate.")
 	flagset.BoolVar(&analyticsEnabled, "analytics", true, "Send analytical event (Cluster Created/Deleted etc.) to Google Analytics")
+	flagset.BoolVar(&versionInfo, "version", false, "Show version of elasticsearch-operator")
 
 	flagset.Parse(os.Args[1:])
 }
 
 // Main runs the operator objects and servers the api
 func Main() int {
+	if versionInfo {
+		version.Print(os.Args[0])
+		os.Exit(0)
+	}
+
 	logger := log.NewLogfmtLogger(os.Stdout)
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
 
@@ -80,8 +88,7 @@ func Main() int {
 	}
 
 	web.Register(http.DefaultServeMux)
-	// TODO Change back to 8080
-	l, err := net.Listen("tcp", ":8081")
+	l, err := net.Listen("tcp", ":8080")
 	if err != nil {
 		fmt.Fprint(os.Stderr, err)
 		return 1
