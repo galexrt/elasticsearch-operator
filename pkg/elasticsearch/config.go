@@ -81,7 +81,7 @@ http:
     allow-origin: "*"
 discovery:
   zen:
-    ping.unicast.hosts: elasticsearch-discovery
+    ping.unicast.hosts: elasticsearch-` + p.Name + `-discovery
     minimum_master_nodes: ` + utils.String(minimumMasterNodes) + "\n")
 
 	if part != nil {

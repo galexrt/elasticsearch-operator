@@ -210,14 +210,16 @@ func makeStatefulSetService(name, tkey string) *v1.Service {
 			Name: name,
 			Labels: map[string]string{
 				"operated-elasticsearch": "true",
+				"elasticsearch":          name,
 			},
 		},
 		Spec: v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name:       "http",
-					Port:       9200,
-					TargetPort: intstr.FromString("http"),
+					Name:       "transport",
+					Port:       9300,
+					TargetPort: intstr.FromString("transport"),
+					Protocol:   v1.ProtocolTCP,
 				},
 			},
 			Selector: map[string]string{
@@ -226,10 +228,22 @@ func makeStatefulSetService(name, tkey string) *v1.Service {
 			},
 		},
 	}
-	if tkey != "discovery" {
+	if tkey != "discovery" && tkey != "ingest" {
 		svc.Spec.ClusterIP = "None"
 	} else {
-		svc.Spec.ClusterIP = ""
+		svc.Spec.Selector["role"] = "master"
+	}
+	if tkey == "ingest" {
+		svc.Spec.Ports = []v1.ServicePort{
+			{
+				Name:       "http",
+				Port:       9200,
+				TargetPort: intstr.FromString("http"),
+				Protocol:   v1.ProtocolTCP,
+			},
+		}
+	} else {
+
 	}
 	return svc
 }
@@ -346,17 +360,21 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 							Handler: probeHandler,
 							// For larger servers, restoring a checkpoint on startup may take quite a bit of time.
 							// Wait up to 5 minutes.
-							InitialDelaySeconds: 300,
+							InitialDelaySeconds: 120,
 							PeriodSeconds:       5,
 							TimeoutSeconds:      probeTimeoutSeconds,
 							FailureThreshold:    10,
 						},
-						ReadinessProbe: &v1.Probe{
-							Handler:          probeHandler,
-							TimeoutSeconds:   probeTimeoutSeconds,
-							PeriodSeconds:    5,
-							FailureThreshold: 6,
-						},
+						/*
+							TODO(galexrt) check back later if we can enable this again
+							as the discovery service isn't "activating" with this..
+							ReadinessProbe: &v1.Probe{
+								Handler:          probeHandler,
+								TimeoutSeconds:   probeTimeoutSeconds,
+								PeriodSeconds:    5,
+								FailureThreshold: 6,
+							},
+						*/
 						Resources:       p.Resources,
 						SecurityContext: securityContext,
 					},

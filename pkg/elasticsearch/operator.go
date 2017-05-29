@@ -599,6 +599,9 @@ func needsUpdate(pod *v1.Pod, tmpl v1.PodTemplateSpec) bool {
 	if !reflect.DeepEqual(c1.Args, c2.Args) {
 		return true
 	}
+	if !reflect.DeepEqual(c1.Env, c2.Env) {
+		return true
+	}
 
 	return false
 }
