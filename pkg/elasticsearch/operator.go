@@ -538,12 +538,12 @@ func (c *Operator) syncVersion(key string, el *v1alpha1.Elasticsearch) error {
 func ElasticsearchStatus(kclient kubernetes.Interface, el *v1alpha1.Elasticsearch) (map[string]*v1alpha1.ElasticsearchStatus, map[string][]v1.Pod, error) {
 	ress := map[string]*v1alpha1.ElasticsearchStatus{}
 
-	var oldPods map[string][]v1.Pod
+	oldPods := map[string][]v1.Pod{}
 
-	for tkey, _ := range map[string]*v1alpha1.ElasticsearchPartSpec{
-		"master": el.Spec.Master,
-		"data":   el.Spec.Data,
-		"ingest": el.Spec.Ingest,
+	for _, tkey := range []string{
+		"master",
+		"data",
+		"ingest",
 	} {
 		res := &v1alpha1.ElasticsearchStatus{
 			Paused:   el.Spec.Paused,
@@ -551,7 +551,10 @@ func ElasticsearchStatus(kclient kubernetes.Interface, el *v1alpha1.Elasticsearc
 		}
 		name := el.ObjectMeta.Name + "-" + tkey
 
-		pods, err := kclient.Core().Pods(el.Namespace).List(ListOptions(name))
+		labelSelector := ListOptions(el.ObjectMeta.Name)
+		labelSelector.LabelSelector = labelSelector.LabelSelector + ",role=" + tkey
+
+		pods, err := kclient.Core().Pods(el.Namespace).List(labelSelector)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "retrieving pods of failed")
 		}
@@ -571,6 +574,9 @@ func ElasticsearchStatus(kclient kubernetes.Interface, el *v1alpha1.Elasticsearc
 				res.AvailableReplicas++
 				// TODO(fabxc): detect other fields of the pod template that are mutable.
 				if needsUpdate(&pod, sset.Spec.Template) {
+					if _, exists := oldPods[tkey]; !exists {
+						oldPods[tkey] = []v1.Pod{}
+					}
 					oldPods[tkey] = append(oldPods[tkey], pod)
 				} else {
 					res.UpdatedReplicas++

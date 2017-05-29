@@ -16,7 +16,6 @@ package elasticsearch
 
 import (
 	"fmt"
-	"path"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -305,9 +304,8 @@ func makeStatefulSetSpec(name, tkey string, el *v1alpha1.Elasticsearch, p *v1alp
 	}
 
 	probeHandler := v1.Handler{
-		HTTPGet: &v1.HTTPGetAction{
-			Path: path.Clean("/_cluster/health"),
-			Port: intstr.FromString("http"),
+		TCPSocket: &v1.TCPSocketAction{
+			Port: intstr.FromString("transport"),
 		},
 	}
 
