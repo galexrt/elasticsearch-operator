@@ -16,4 +16,5 @@ dependencies:
 
 test:
   override:
-    - go test -v -race github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/cmd/operator
+    - cd ${HOME}/.go_workspace/src/github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}
+    - go test $(go list ./... | grep -v /vendor/)
