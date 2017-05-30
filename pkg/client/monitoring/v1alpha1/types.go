@@ -55,8 +55,6 @@ type ElasticsearchSpec struct {
 	// When a Elasticsearch deployment is paused, no actions except for deletion
 	// will be performed on the underlying objects.
 	Paused bool `json:"paused,omitempty"`
-	// Base image to use for a Elasticsearch deployment.
-	BaseImage string `json:"baseImage,omitempty"`
 	// An optional list of references to secrets in the same namespace
 	// to use for pulling elasticsearch and curator images from registries
 	// see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod

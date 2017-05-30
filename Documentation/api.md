@@ -95,7 +95,6 @@ ElasticsearchSpec Specification of the desired behavior of the Elasticsearch clu
 | javaMemoryControl |  | bool | false |
 | additionalConfig |  | string | false |
 | paused | When a Elasticsearch deployment is paused, no actions except for deletion will be performed on the underlying objects. | bool | false |
-| baseImage | Base image to use for a Elasticsearch deployment. | string | false |
 | imagePullSecrets | An optional list of references to secrets in the same namespace to use for pulling elasticsearch and curator images from registries see http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod | [][v1.LocalObjectReference](https://kubernetes.io/docs/api-reference/v1.6/#localobjectreference-v1-core) | false |
 | serviceAccountName | ServiceAccountName is the name of the ServiceAccount to use to run the Elasticsearch Pods. | string | false |
 | master | Master spec for all statefulset information | *[ElasticsearchPartSpec](#elasticsearchpartspec) | true |
