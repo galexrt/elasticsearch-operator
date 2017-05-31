@@ -1,5 +1,7 @@
 FROM quay.io/prometheus/busybox:latest
 
-ADD .build/linux-amd64/operator /bin/operator
+ENV ARCH="linux_amd64"
+
+ADD output/elasticsearch-operator_$ARCH /bin/operator
 
 ENTRYPOINT ["/bin/operator"]
