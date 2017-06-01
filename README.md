@@ -1,5 +1,7 @@
 # Elasticsearch Operator
 
+[![CircleCI branch](https://img.shields.io/circleci/project/github/RedSparr0w/node-csgo-parser/master.svg)]() [![Docker Repository on Quay](https://quay.io/repository/galexrt/elasticsearch-operator/status "Docker Repository on Quay")](https://quay.io/repository/galexrt/elasticsearch-operator) [![Go Report Card](https://goreportcard.com/badge/github.com/galexrt/srcds_exporter)](https://goreportcard.com/report/github.com/galexrt/srcds_exporter) [![license](https://img.shields.io/github/license/mashape/apistatus.svg)]()
+
 The code in this repo is based of the [coreos/prometheus-operator](https://github.com/coreos/prometheus-operator).
 
 **Project status: *alpha*** Not all planned features are completed. The API, spec, status
@@ -17,8 +19,8 @@ Once installed, the Elasticsearch Operator provides the following features:
 * **Simple Configuration**: Configure the fundamentals of Elasticsearch like versions, persistence,
   and replicas from a native Kubernetes resource.
 
-<!-- For an introduction to the Elasticsearch Operator, see the initial [blog
-post](https://coreos.com/blog/the-prometheus-operator.html). TODO create own blog post-->
+For an introduction to the Elasticsearch Operator, see the initial [blog
+post](https://edenmal.net/2017/05/30/Kubernetes-Elasticsearch-Operator/).
 
 The current project roadmap [can be found here](./ROADMAP.md).
 

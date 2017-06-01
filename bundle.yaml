@@ -1,0 +1,85 @@
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: elasticsearch-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: elasticsearch-operator
+subjects:
+- kind: ServiceAccount
+  name: elasticsearch-operator
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: elasticsearch-operator
+rules:
+- apiGroups:
+  - extensions
+  resources:
+  - thirdpartyresources
+  verbs:
+  - create
+- apiGroups:
+  - monitoring.galexrt.com
+  resources:
+  - alertmanagers
+  - elasticsearches
+  - servicemonitors
+  verbs:
+  - "*"
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs: ["*"]
+- apiGroups: [""]
+  resources:
+  - configmaps
+  - secrets
+  verbs: ["*"]
+- apiGroups: [""]
+  resources:
+  - pods
+  verbs: ["list", "delete"]
+- apiGroups: [""]
+  resources:
+  - services
+  - endpoints
+  verbs: ["get", "create", "update"]
+- apiGroups: [""]
+  resources:
+  - nodes
+  verbs: ["list", "watch"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: elasticsearch-operator
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: elasticsearch-operator
+  labels:
+    operator: elasticsearch
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        operator: elasticsearch
+    spec:
+      serviceAccountName: elasticsearch-operator
+      containers:
+      - name: elasticsearch-operator
+        image: quay.io/galexrt/elasticsearch-operator:v1.0.0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 50Mi
+          limits:
+            cpu: 200m
+            memory: 100Mi
