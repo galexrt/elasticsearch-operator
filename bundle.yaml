@@ -75,7 +75,7 @@ spec:
       serviceAccountName: elasticsearch-operator
       containers:
       - name: elasticsearch-operator
-        image: quay.io/galexrt/elasticsearch-operator:v1.0.0
+        image: quay.io/galexrt/elasticsearch-operator:v1.1.0
         resources:
           requests:
             cpu: 100m
