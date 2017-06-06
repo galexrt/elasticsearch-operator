@@ -13,6 +13,8 @@
 // limitations under the License.
 package utils
 
+import "strings"
+
 // String converts an int32 to a string
 // Taken from https://stackoverflow.com/a/39444005
 func String(n int32) string {
@@ -34,4 +36,13 @@ func String(n int32) string {
 			return string(buf[pos:])
 		}
 	}
+}
+
+// FormatMemoryJava takes a Kubernetes memory string (example 512Mi, 512M or 1G,
+// etc.) and converts it to the specific Java memory "type".
+func FormatMemoryJava(memory string) string {
+	if string(memory[len(memory)-1]) == "i" {
+		return memory[:len(memory)-1]
+	}
+	return strings.ToLower(memory)
 }

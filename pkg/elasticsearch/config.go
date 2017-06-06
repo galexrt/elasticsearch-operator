@@ -15,6 +15,7 @@
 package elasticsearch
 
 import (
+	"fmt"
 	"regexp"
 
 	"github.com/galexrt/elasticsearch-operator/pkg/client/monitoring/v1alpha1"
@@ -22,8 +23,25 @@ import (
 )
 
 var (
-	invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
-	defaultJavaOpts    = `status = error
+	invalidLabelCharRE   = regexp.MustCompile(`[^a-zA-Z0-9_]`)
+	defaultJvmOptsConfig = `-XX:+UseConcMarkSweepGC
+-XX:CMSInitiatingOccupancyFraction=75
+-XX:+UseCMSInitiatingOccupancyOnly
+-XX:+DisableExplicitGC
+-XX:+AlwaysPreTouch
+-server
+-Xss1m
+-Djava.awt.headless=true
+-Dfile.encoding=UTF-8
+-Djna.nosys=true
+-Djdk.io.permissionsUseCanonicalPath=true
+-Dio.netty.noUnsafe=true
+-Dio.netty.noKeySetOptimization=true
+-Dlog4j.shutdownHookEnabled=false
+-Dlog4j2.disable.jmx=true
+-Dlog4j.skipJansi=true
+-XX:+HeapDumpOnOutOfMemoryError`
+	defaultLog4JConfig = `status = error
 appender.console.type = Console
 appender.console.name = console
 appender.console.layout.type = PatternLayout
@@ -98,46 +116,38 @@ discovery:
 }
 
 func generateJvmOptsConfig(p *v1alpha1.Elasticsearch, part *v1alpha1.ElasticsearchPartSpec) []byte {
-	// TODO(galexrt)
-	config := []byte(`-XX:+UseConcMarkSweepGC
--XX:CMSInitiatingOccupancyFraction=75
--XX:+UseCMSInitiatingOccupancyOnly
--XX:+DisableExplicitGC
--XX:+AlwaysPreTouch
--server
--Xss1m
--Djava.awt.headless=true
--Dfile.encoding=UTF-8
--Djna.nosys=true
--Djdk.io.permissionsUseCanonicalPath=true
--Dio.netty.noUnsafe=true
--Dio.netty.noKeySetOptimization=true
--Dlog4j.shutdownHookEnabled=false
--Dlog4j2.disable.jmx=true
--Dlog4j.skipJansi=true
--XX:+HeapDumpOnOutOfMemoryError
-`)
-
+	config := []byte(defaultJvmOptsConfig)
 	if len(part.JavaOpts) > 0 {
 		config = append(config, "\n"+part.JavaOpts...)
 	}
 
 	if p.Spec.JavaMemoryControl {
-		// TODO(galexrt) add xmx thingy args to config
+		// -Xms<size>[g|G|m|M|k|K]
+		// small is 1000
+		// big is 1024
+		if part.Resources.Requests.Memory().String() != "0" {
+			config = append(config,
+				fmt.Sprintf(
+					"\n-Xms%ssm",
+					utils.FormatMemoryJava(part.Resources.Requests.Memory().String()),
+				)...,
+			)
+		}
+		if part.Resources.Limits.Memory().String() != "0" {
+			config = append(config,
+				fmt.Sprintf(
+					"\n-Xmx%sm",
+					utils.FormatMemoryJava(part.Resources.Limits.Memory().String()),
+				)...,
+			)
+		}
 	}
 
 	return config
 }
 
 func generateLog4JConfig(p *v1alpha1.Elasticsearch, part *v1alpha1.ElasticsearchPartSpec) []byte {
-	// TODO(galexrt)
-	config := []byte(`status = error
-appender.console.type = Console
-appender.console.name = console
-appender.console.layout.type = PatternLayout
-appender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] %marker%m%n
-rootLogger.level = info
-rootLogger.appenderRef.console.ref = console
-`)
+	config := []byte(defaultLog4JConfig)
+	// TODO(galexrt) should this be configurable?
 	return config
 }

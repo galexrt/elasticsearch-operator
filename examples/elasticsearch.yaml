@@ -10,6 +10,8 @@ spec:
   # this is currently not implemented due to it being missing
   # from the used k8s go-client
   #imagePullSecrets: "example"
+  paused: false
+#  imagePullSecrets: "example"
   # config that is added to *all* autogenrated config file
   additionalConfig: |
     action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*,filebeat-*,metricbeat-*,packetbeat-*,winlogbeat-*,heartbeat-*
@@ -17,48 +19,51 @@ spec:
     replicas: 1
     #nodeSelector:
     #  elasticsearch-data: "yes"
-    resources:
-      limits:
-        memory: "512Mi"
-      requests:
-        memory: "512Mi"
+    #baseImage: "quay.io/.."
+    #resources:
+    #  limits:
+    #    memory: "512Mi"
+    #  requests:
+    #    memory: "512Mi"
     # add to the jvm.options file
     javaOpts: |
       # your additional java opts here
     additionalConfig: |
       # your addtional elasticsearch configuration here
-    storage:
-      class: rbd
-      resources:
-        requests:
-          storage: 10Gi
+    #storage:
+    #  class: rbd
+    #  resources:
+    #    requests:
+    #      storage: 10Gi
   data:
     replicas: 1
     #nodeSelector:
     #  elasticsearch-data: "yes"
-    resources:
-      limits:
-        memory: "512Mi"
-      requests:
-        memory: "512Mi"
+    #baseImage: "quay.io/.."
+    #resources:
+    #  limits:
+    #    memory: "512Mi"
+    #  requests:
+    #    memory: "512Mi"
     javaOpts: |
       # your additional java opts here
     additionalConfig: |
       # your addtional elasticsearch configuration here
-    storage:
-      class: rbd
-      resources:
-        requests:
-					storage: 15Gi
+    #storage:
+    #  class: rbd
+    #  resources:
+    #    requests:
+    #      storage: 15Gi
   ingest:
     replicas: 1
     #nodeSelector:
     #  elasticsearch-data: "yes"
-    resources:
-      limits:
-        memory: "512Mi"
-      requests:
-        memory: "512Mi"
+    #baseImage: "quay.io/.."
+    #resources:
+    #  limits:
+    #    memory: "512Mi"
+    #  requests:
+    #    memory: "512Mi"
     javaOpts: |
       # your additional java opts here
     additionalConfig: |
