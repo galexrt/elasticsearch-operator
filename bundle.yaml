@@ -23,11 +23,10 @@ rules:
   verbs:
   - create
 - apiGroups:
-  - monitoring.galexrt.com
+  - monitoring.zerbytes.net
   resources:
-  - alertmanagers
   - elasticsearches
-  - servicemonitors
+  - curators
   verbs:
   - "*"
 - apiGroups:
@@ -43,16 +42,11 @@ rules:
 - apiGroups: [""]
   resources:
   - pods
-  verbs: ["list", "delete"]
+  verbs: ["list"]
 - apiGroups: [""]
   resources:
   - services
-  - endpoints
   verbs: ["get", "create", "update"]
-- apiGroups: [""]
-  resources:
-  - nodes
-  verbs: ["list", "watch"]
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -79,7 +73,7 @@ spec:
         resources:
           requests:
             cpu: 100m
-            memory: 50Mi
+            memory: 75Mi
           limits:
             cpu: 200m
-            memory: 100Mi
+            memory: 125Mi
