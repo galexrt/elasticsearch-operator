@@ -2,6 +2,9 @@
 
 [![CircleCI branch](https://img.shields.io/circleci/project/github/RedSparr0w/node-csgo-parser/master.svg)]() [![Docker Repository on Quay](https://quay.io/repository/galexrt/elasticsearch-operator/status "Docker Repository on Quay")](https://quay.io/repository/galexrt/elasticsearch-operator) [![Go Report Card](https://goreportcard.com/badge/github.com/galexrt/srcds_exporter)](https://goreportcard.com/report/github.com/galexrt/srcds_exporter) [![license](https://img.shields.io/github/license/mashape/apistatus.svg)]()
 
+> **!!WARNING!!** This code is currently not maintained anymore, please use another Elasticsearch like [upmc-enterprises/elasticsearch-operator](https://github.com/upmc-enterprises/elasticsearch-operator) instead!
+> If you want to pick up the repo/code, let me know by mail. Thanks!
+
 The code in this repo is based of the [coreos/prometheus-operator](https://github.com/coreos/prometheus-operator).
 
 **Project status: *alpha*** Not all planned features are completed. The API, spec, status
