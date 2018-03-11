@@ -1,0 +1,11 @@
+dellhw_exporter
+Copyright 2017-2018 Alexander Trost
+
+
+For the components used in this product, please refer to the `vendor/` directory.
+The following components were used in this product as inspiration:
+
+Bosun
+https://github.com/bosun-monitor/bosun
+Copyright 2013 Stack Exchange
+Licensed under the MIT License
