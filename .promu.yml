@@ -1,5 +1,5 @@
 repository:
-    path: github.com/galexrt/dellhw_exporter
+    path: github.com/galexrt/elasticsearch-operator
 build:
     flags: -a -tags netgo
     ldflags: |
@@ -9,14 +9,13 @@ build:
         -X {{repoPath}}/vendor/github.com/prometheus/common/version.BuildUser={{user}}@{{host}}
         -X {{repoPath}}/vendor/github.com/prometheus/common/version.BuildDate={{date "20060102-15:04:05"}}
     binaries:
-        - name: dellhw_exporter
-          path: ./cmd/dellhw_exporter
+      - name: elasticsearch-operator
+          path: ./cmd/operator
 
 tarball:
     files:
         - NOTICE
-        - systemd/dellhw_exporter.service
-        - systemd/sysconfig.dellhw_exporter
+
 crossbuild:
     platforms:
         - linux/amd64

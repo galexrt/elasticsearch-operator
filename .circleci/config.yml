@@ -9,16 +9,16 @@
 version: 2
 jobs:
   build:
-    working_directory: /go/src/github.com/galexrt/dellhw_exporter
+    working_directory: /go/src/github.com/galexrt/elasticsearch-operator
     parallelism: 1
     shell: /bin/bash --login
     environment:
       CIRCLE_ARTIFACTS: /tmp/circleci-artifacts
       CIRCLE_TEST_REPORTS: /tmp/circleci-test-results
-      DOCKER_IMAGE_NAME: galexrt/dellhw_exporter
-      QUAY_IMAGE_NAME: quay.io/galexrt/dellhw_exporter
+      DOCKER_IMAGE_NAME: galexrt/elasticsearch-operator
+      QUAY_IMAGE_NAME: quay.io/galexrt/elasticsearch-operator
       DOCKER_TEST_IMAGE_NAME: quay.io/prometheus/golang-builder:1.10-base
-      REPO_PATH: github.com/galexrt/dellhw_exporter
+      REPO_PATH: github.com/galexrt/elasticsearch-operator
     docker:
     - image: circleci/golang:1.10
     steps:
@@ -56,8 +56,8 @@ jobs:
         command: |
           docker cp app:"$(pwd)/.build" .
           mkdir $CIRCLE_ARTIFACTS/binaries/ && cp -a .build/* $CIRCLE_ARTIFACTS/binaries/
-          [ -e dellhw_exporter ] && rm dellhw_exporter
-          ln -sfn .build/linux-amd64/dellhw_exporter dellhw_exporter
+          [ -e elasticsearch-operator ] && rm elasticsearch-operator
+          ln -sfn .build/linux-amd64/elasticsearch-operator elasticsearch-operator
     - run:
         name: Build Docker images
         command: |

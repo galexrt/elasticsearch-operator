@@ -5,7 +5,7 @@ language: go
 go:
   - '1.10'
 
-go_import_path: github.com/galexrt/dellhw_exporter
+go_import_path: github.com/galexrt/elasticsearch-operator
 
 script:
 - make test
